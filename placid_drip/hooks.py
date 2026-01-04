@@ -5,6 +5,11 @@ app_description = "For Drip Lesson Algo"
 app_email = "dane@dolphin-digital.com"
 app_license = "mit"
 
+override_whitelisted_methods = {
+  "lms.lms.utils.get_lesson": "placid_drip.overrides.lms_utils.get_lesson",
+  "lms.lms.utils.get_course_outline": "placid_drip.overrides.lms_utils.get_course_outline",
+}
+
 # Apps
 # ------------------
 
