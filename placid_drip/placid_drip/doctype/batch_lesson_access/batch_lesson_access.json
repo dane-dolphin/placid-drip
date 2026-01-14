@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "batch",
+  "course",
   "lesson",
   "available_from",
   "force_lock"
@@ -39,12 +40,19 @@
    "fieldname": "force_lock",
    "fieldtype": "Check",
    "label": "Force Lock"
+  },
+  {
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "label": "Course",
+   "options": "LMS Course",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-04 04:29:30.850180",
+ "modified": "2026-01-14 05:02:03.689127",
  "modified_by": "Administrator",
  "module": "Placid Drip",
  "name": "Batch Lesson Access",
