@@ -1,117 +1,3 @@
-# import frappe
-# from frappe.utils import now_datetime, get_datetime
-
-# from placid_drip.access import can_access_lesson, resolve_user_batch_for_course
-
-# _FRAPPE_RPC_KEYS = {
-#     "cmd", "data", "_",
-#     "ignore_permissions", "freeze", "freeze_message",
-#     "run_method", "docs", "doc",
-# }
-
-# def _should_enforce_drip() -> bool:
-#     if frappe.session.user == "Guest":
-#         return False
-
-#     roles = set(frappe.get_roles(frappe.session.user))
-
-#     # allow staff roles
-#     if roles & {"System Manager", "LMS Instructor", "LMS Moderator"}:
-#         return False
-
-#     return "LMS Student" in roles
-
-
-# @frappe.whitelist()
-# def get_lesson(*args, **kwargs):
-#     clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
-
-#     # IMPORTANT: call original via direct import (avoid recursion)
-#     from lms.lms import utils as lms_utils
-#     result = lms_utils.get_lesson(*args, **clean_kwargs)
-
-#     lesson_doc = (result or {}).get("message") if isinstance(result, dict) and "message" in result else result
-#     lesson_doc = lesson_doc or {}
-
-#     course = lesson_doc.get("course") or clean_kwargs.get("course")
-#     lesson_name = lesson_doc.get("name") or clean_kwargs.get("lesson")
-
-#     if _should_enforce_drip() and course and lesson_name:
-#         allowed, reason, _next_at = can_access_lesson(frappe.session.user, course, lesson_name)
-#         if not allowed:
-#             frappe.throw(reason or "Lesson is locked.", frappe.PermissionError)
-
-#     return result
-
-
-# @frappe.whitelist()
-# def get_course_outline(*args, **kwargs):
-#     frappe.logger("placid_drip").warning(
-#         "🔥 placid_drip.get_course_outline OVERRIDE HIT"
-#     )
-#     clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
-
-#     from lms.lms import utils as lms_utils
-#     result = lms_utils.get_course_outline(*args, **clean_kwargs)
-
-#     outline = (result or {}).get("message") if isinstance(result, dict) else None
-#     if not outline or not _should_enforce_drip():
-#         return result
-
-#     course = clean_kwargs.get("course") or clean_kwargs.get("course_name")
-#     if not course:
-#         return result
-
-#     batch = resolve_user_batch_for_course(frappe.session.user, course)
-
-#     # POLICY CHOICE:
-#     # If cohort-only: lock all when no batch
-#     # If self-learning allowed: unlock all when no batch (change is_locked to 0)
-#     if not batch:
-#         for ch in outline:
-#             for lesson in ch.get("lessons", []):
-#                 lesson["is_locked"] = 1
-#                 lesson["opens_at"] = None
-#                 lesson["lock_reason"] = "Not enrolled in a batch for this course."
-#         return result
-
-#     lesson_names = [l["name"] for ch in outline for l in ch.get("lessons", []) if l.get("name")]
-#     if not lesson_names:
-#         return result
-
-#     rows = frappe.db.get_all(
-#         "Batch Lesson Access",
-#         filters={"batch": batch, "lesson": ["in", lesson_names]},
-#         fields=["lesson", "available_from", "force_lock"],
-#     )
-#     by_lesson = {r["lesson"]: r for r in rows}
-#     now = now_datetime()
-
-#     for ch in outline:
-#         for lesson in ch.get("lessons", []):
-#             r = by_lesson.get(lesson.get("name"))
-
-#             lesson["is_locked"] = 0
-#             lesson["opens_at"] = None
-#             lesson["lock_reason"] = None
-
-#             if not r:
-#                 continue
-
-#             if r.get("force_lock"):
-#                 lesson["is_locked"] = 1
-#                 lesson["lock_reason"] = "Locked by cohort schedule"
-#                 continue
-
-#             opens = get_datetime(r.get("available_from"))
-#             if opens and now < opens:
-#                 lesson["is_locked"] = 1
-#                 lesson["opens_at"] = opens
-#                 lesson["lock_reason"] = f"Opens on {opens}"
-
-#     result["_drip_override_hit"] = 1
-#     return result
-
 import frappe
 from frappe.utils import now_datetime, get_datetime
 from placid_drip.access import resolve_user_batch_for_course, can_access_lesson
@@ -141,6 +27,10 @@ def get_lesson(*args, **kwargs):
 
     course = lesson_doc.get("course") or clean_kwargs.get("course")
     lesson_name = lesson_doc.get("name") or clean_kwargs.get("lesson")
+
+    # ✅ allow batch evaluator to view lesson content
+    if course and _is_evaluator_for_course(frappe.session.user, course):
+        return result
 
     if _should_enforce_drip() and course and lesson_name:
         allowed, reason, _next_at = can_access_lesson(frappe.session.user, course, lesson_name)
@@ -179,6 +69,7 @@ def get_course_outline(*args, **kwargs):
 
     # 5) resolve course
     course = clean_kwargs.get("course") or clean_kwargs.get("course_name")
+
     if not course:
         # fallback: sometimes lessons contain `course`
         try:
@@ -190,6 +81,10 @@ def get_course_outline(*args, **kwargs):
     if not course:
         # _log("course missing -> returning outline unchanged")
         return outline
+    
+    if _is_evaluator_for_course(frappe.session.user, course):
+        return outline
+    
 
     # 6) resolve batch for this user+course
     batch = resolve_user_batch_for_course(frappe.session.user, course)
@@ -274,3 +169,15 @@ def _should_enforce_drip() -> bool:
         return False
 
     return "LMS Student" in roles
+
+def _is_evaluator_for_course(user: str, course: str) -> bool:
+    return bool(
+        frappe.db.exists(
+            "Batch Course",
+            {
+                "course": course,
+                "evaluator": user,
+                "parenttype": "LMS Batch",
+            },
+        )
+    )
