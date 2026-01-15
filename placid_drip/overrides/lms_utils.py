@@ -37,43 +37,104 @@ _FRAPPE_RPC_KEYS = {
     # if _should_enforce_drip() and course and lesson_name:
     #     allowed, reason, _next_at = can_access_lesson(frappe.session.user, course, lesson_name)
     #     if not allowed:
+
+
     #         frappe.throw(reason or "Lesson is locked.", frappe.PermissionError)
 
     # return result
+
+# @frappe.whitelist()
+# def get_lesson(*args, **kwargs):
+#     clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
+
+#     # ✅ 1) Evaluator bypass (return FULL lesson doc; ignore enrollment)
+#     course = clean_kwargs.get("course") or clean_kwargs.get("course_name")
+#     chapter_no = clean_kwargs.get("chapter")
+#     lesson_no = clean_kwargs.get("lesson")
+
+    
+#     if course and chapter_no and lesson_no and _is_evaluator_for_course(frappe.session.user, course):
+#         lesson_name = _get_lesson_docname(course, chapter_no, lesson_no)
+#         if not lesson_name:
+#             return {}
+
+#         doc = frappe.get_doc(LESSON_DTYPE, lesson_name)
+#         return doc.as_dict()
+
+#     # ✅ 2) Everyone else: call upstream LMS (keeps preview-friendly behavior)
+#     from lms.lms import utils as lms_utils
+#     result = lms_utils.get_lesson(*args, **clean_kwargs)
+
+#     # ✅ 3) Student drip enforcement (your custom policy)
+#     lesson_doc = (result or {}).get("message") if isinstance(result, dict) and "message" in result else result
+#     lesson_doc = lesson_doc or {}
+
+#     # Some LMS responses don't include lesson docname; fall back
+#     lesson_name = lesson_doc.get("name") or None
+
+#     if _should_enforce_drip() and course and lesson_name:
+#         allowed, reason, _next_at = can_access_lesson(frappe.session.user, course, lesson_name)
+#         if not allowed:
+#             frappe.throw(reason or "Lesson is locked.", frappe.PermissionError)
+
+#     return result
 
 @frappe.whitelist()
 def get_lesson(*args, **kwargs):
     clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
 
-    # ✅ 1) Evaluator bypass (return FULL lesson doc; ignore enrollment)
     course = clean_kwargs.get("course") or clean_kwargs.get("course_name")
-    chapter_no = clean_kwargs.get("chapter")
-    lesson_no = clean_kwargs.get("lesson")
+    chapter = clean_kwargs.get("chapter")
+    lesson = clean_kwargs.get("lesson")
 
-    
-    if course and chapter_no and lesson_no and _is_evaluator_for_course(frappe.session.user, course):
-        lesson_name = _get_lesson_docname(course, chapter_no, lesson_no)
-        if not lesson_name:
-            return {}
-
-        doc = frappe.get_doc(LESSON_DTYPE, lesson_name)
-        return doc.as_dict()
-
-    # ✅ 2) Everyone else: call upstream LMS (keeps preview-friendly behavior)
     from lms.lms import utils as lms_utils
     result = lms_utils.get_lesson(*args, **clean_kwargs)
 
-    # ✅ 3) Student drip enforcement (your custom policy)
-    lesson_doc = (result or {}).get("message") if isinstance(result, dict) and "message" in result else result
-    lesson_doc = lesson_doc or {}
+    # LMS may return dict/no_preview OR full lesson dict
+    if (
+        isinstance(result, dict)
+        and result.get("no_preview")
+        and course
+        and chapter
+        and lesson
+        and _is_evaluator_for_course(frappe.session.user, course)
+    ):
+        # ✅ Resolve the SAME way LMS does
+        chapter_name = frappe.db.get_value("Chapter Reference", {"parent": course, "idx": int(chapter)}, "chapter")
+        lesson_name = frappe.db.get_value("Lesson Reference", {"parent": chapter_name, "idx": int(lesson)}, "lesson")
+        if not lesson_name:
+            return {}
 
-    # Some LMS responses don't include lesson docname; fall back
-    lesson_name = lesson_doc.get("name") or None
+        # ✅ Return the SAME shape LMS returns (copy from lms get_lesson)
+        lesson_details = frappe.db.get_value(
+            "Course Lesson",
+            lesson_name,
+            [
+                "name","title","include_in_preview","body","creation","youtube","quiz_id","question",
+                "file_type","instructor_notes","course","content","instructor_content",
+            ],
+            as_dict=True,
+        ) or {}
 
-    if _should_enforce_drip() and course and lesson_name:
-        allowed, reason, _next_at = can_access_lesson(frappe.session.user, course, lesson_name)
-        if not allowed:
-            frappe.throw(reason or "Lesson is locked.", frappe.PermissionError)
+        if not lesson_details:
+            return {}
+
+        # Fill the same extra fields LMS adds
+        lesson_details.chapter_title = frappe.db.get_value("Course Chapter", chapter_name, "title")
+        neighbours = lms_utils.get_neighbour_lesson(course, int(chapter), int(lesson))
+        lesson_details.next = neighbours["next"]
+        lesson_details.prev = neighbours["prev"]
+        lesson_details.progress = 0  # evaluator progress typically irrelevant; or call get_progress if you want
+        lesson_details.membership = True  # effectively bypass
+        lesson_details.icon = lms_utils.get_lesson_icon(lesson_details.body, lesson_details.content)
+        lesson_details.instructors = lms_utils.get_instructors("LMS Course", course)
+        course_info = frappe.db.get_value("LMS Course", course, ["title","paid_certificate","disable_self_learning"], as_dict=1)
+        lesson_details.course_title = course_info.title
+        lesson_details.paid_certificate = course_info.paid_certificate
+        lesson_details.disable_self_learning = course_info.disable_self_learning
+        lesson_details.videos = lms_utils.get_video_details(lesson_name)
+
+        return lesson_details
 
     return result
 
@@ -221,68 +282,68 @@ def _is_evaluator_for_course(user: str, course: str) -> bool:
     )
 
 
-def _get_lesson_docname(course: str, chapter_idx: int, lesson_idx: int) -> str | None:
-    lesson_number = f"{int(chapter_idx)}.{int(lesson_idx)}"
-    return frappe.db.get_value(
-        LESSON_DTYPE,
-        {"course": course, "number": lesson_number},
-        "name",
-    )
-
-# def _get_lesson_docname(course: str, chapter_no: int, lesson_no: int) -> str | None:
-#     # chapter_no and lesson_no are 1-based (from the route params)
-#     chapter_name = frappe.db.get_value(
-#         CHAPTER_DTYPE,
-#         {"course": course, "idx": int(chapter_no)},
+# def _get_lesson_docname(course: str, chapter_idx: int, lesson_idx: int) -> str | None:
+#     lesson_number = f"{int(chapter_idx)}.{int(lesson_idx)}"
+#     return frappe.db.get_value(
+#         LESSON_DTYPE,
+#         {"course": course, "number": lesson_number},
 #         "name",
 #     )
-#     if not chapter_name:
+
+# # def _get_lesson_docname(course: str, chapter_no: int, lesson_no: int) -> str | None:
+# #     # chapter_no and lesson_no are 1-based (from the route params)
+# #     chapter_name = frappe.db.get_value(
+# #         CHAPTER_DTYPE,
+# #         {"course": course, "idx": int(chapter_no)},
+# #         "name",
+# #     )
+# #     if not chapter_name:
+# #         return None
+
+# #     # Lesson Reference is the child table; fieldname is `lesson`
+# #     return frappe.db.get_value(
+# #         "Lesson Reference",
+# #         {
+# #             "parenttype": CHAPTER_DTYPE,
+# #             "parent": chapter_name,
+# #             "parentfield": "lessons",
+# #             "idx": int(lesson_no),
+# #         },
+# #         "lesson",
+# #     )
+
+
+# def _get_lesson_docname(course: str, chapter_no, lesson_no) -> str | None:
+#     try:
+#         chapter_no = int(chapter_no)
+#         lesson_no = int(lesson_no)
+#     except (TypeError, ValueError):
 #         return None
 
-#     # Lesson Reference is the child table; fieldname is `lesson`
-#     return frappe.db.get_value(
-#         "Lesson Reference",
-#         {
-#             "parenttype": CHAPTER_DTYPE,
-#             "parent": chapter_name,
-#             "parentfield": "lessons",
-#             "idx": int(lesson_no),
-#         },
-#         "lesson",
+#     chapters = frappe.get_all(
+#         "Course Chapter",
+#         filters={"course": course},
+#         fields=["name"],
+#         order_by="idx asc, creation asc"
 #     )
 
+#     if not chapters or chapter_no < 1 or chapter_no > len(chapters):
+#         return None
 
-def _get_lesson_docname(course: str, chapter_no, lesson_no) -> str | None:
-    try:
-        chapter_no = int(chapter_no)
-        lesson_no = int(lesson_no)
-    except (TypeError, ValueError):
-        return None
+#     chapter_name = chapters[chapter_no - 1]["name"]
 
-    chapters = frappe.get_all(
-        "Course Chapter",
-        filters={"course": course},
-        fields=["name"],
-        order_by="idx asc, creation asc"
-    )
+#     refs = frappe.get_all(
+#         "Lesson Reference",
+#         filters={
+#             "parenttype": "Course Chapter",
+#             "parent": chapter_name,
+#             "parentfield": "lessons",
+#         },
+#         fields=["lesson"],
+#         order_by="idx asc"
+#     )
 
-    if not chapters or chapter_no < 1 or chapter_no > len(chapters):
-        return None
+#     if not refs or lesson_no < 1 or lesson_no > len(refs):
+#         return None
 
-    chapter_name = chapters[chapter_no - 1]["name"]
-
-    refs = frappe.get_all(
-        "Lesson Reference",
-        filters={
-            "parenttype": "Course Chapter",
-            "parent": chapter_name,
-            "parentfield": "lessons",
-        },
-        fields=["lesson"],
-        order_by="idx asc"
-    )
-
-    if not refs or lesson_no < 1 or lesson_no > len(refs):
-        return None
-
-    return refs[lesson_no - 1]["lesson"]
+#     return refs[lesson_no - 1]["lesson"]
