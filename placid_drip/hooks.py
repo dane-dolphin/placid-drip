@@ -10,6 +10,9 @@ override_whitelisted_methods = {
   "lms.lms.utils.get_course_outline": "placid_drip.overrides.lms_utils.get_course_outline",
 }
 
+after_install = "placid_drip.website_bootstrap.set_home_to_lms"
+after_migrate = "placid_drip.website_bootstrap.set_home_to_lms"
+
 # Apps
 # ------------------
 

@@ -1,0 +1,5 @@
+<script>
+  fetch("/api/method/logout", { credentials: "include" })
+    .then(() => window.location.replace("/login"))
+    .catch(() => window.location.replace("/login"));
+</script>

@@ -1,0 +1,298 @@
+/* ===== Placid Login Theme: dark base + banner + floating heroes ===== */
+body[data-path="login"] {
+  background-color: #0f1f14 !important;
+  min-height: 50vh;
+  overflow-x: hidden;
+
+  background-image:
+    radial-gradient(1200px 600px at 20% 20%, rgba(46, 140, 120, 0.18), rgba(0,0,0,0) 55%),
+    radial-gradient(900px 500px at 80% 30%, rgba(244, 200, 76, 0.10), rgba(0,0,0,0) 60%),
+    linear-gradient(to bottom, rgba(10, 12, 12, 0.92), rgba(10, 12, 12, 0.92));
+
+  /* ✅ Key: gradients must fill the whole page */
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
+  background-attachment: scroll;
+}
+
+/* Right column: center contents but don't shrink widths */
+body[data-path="login"] .placid-login-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* centers the column */
+  gap: 16px;
+  width: 100%;
+  z-index: 5;
+  position: relative;
+}
+
+/* Force the login card to stay "full width" within a max width */
+body[data-path="login"] .placid-login-right .login-content.page-card {
+  width: min(420px, 92vw);
+  max-width: 420px;
+}
+
+/* Make CTA match the login card width */
+body[data-path="login"] .placid-login-right .browse-courses-cta {
+  width: min(420px, 92vw);
+  max-width: 420px;
+  margin-top: clamp(-30vh, -30vh, -4vh);
+  position: relative;
+  z-index: 10;
+}
+
+
+/* Put the banner “strip” height control here */
+body[data-path="login"] .page-content-wrapper {
+  padding-top: 56px; /* pushes content below banner area */
+  min-height:min-content !important;
+}
+
+/* Hide navbars (you already do this) */
+body[data-path="login"] .navbar {
+  display: none !important;
+}
+
+body[data-path="login"] .page-footer {
+  display: none !important;
+}
+
+body[data-path="login"] .web-footer {
+  display: none !important;
+}
+
+body[data-path="login"] .website-footer {
+  display: none !important;
+}
+
+body[data-path="login"] footer {
+  display: none !important;
+}
+
+/* Hide default frappe head */
+body[data-path="login"] .page-card-head {
+  display: none !important;
+}
+
+/* ===== Floating hero images using pseudo-elements ===== */
+/* Attach to a stable container that exists on /login */
+body[data-path="login"] .page-content {
+  position: relative;
+}
+
+/* hero-1 (left / big subtle) */
+body[data-path="login"] .page-content::before {
+  content: "";
+  position: absolute;
+  left: -60px;
+  top: 120px;
+  width: min(520px, 45vw);
+  height: min(520px, 45vw);
+  background: url("/assets/placid_drip/images/hero-1.png") center/contain no-repeat;
+  opacity: 0.28;
+  filter: blur(0.2px) saturate(0.9);
+  pointer-events: none;
+  z-index: 0;
+}
+
+
+/* Ensure the actual login UI sits above the decorative layers */
+body[data-path="login"] .login-content,
+body[data-path="login"] .for-login,
+body[data-path="login"] .page_content,
+body[data-path="login"] main.container {
+  position: relative;
+  z-index: 2;
+  
+}
+
+/* ===== Make your brand/logo readable on dark ===== */
+body[data-path="login"] .login-hero,
+body[data-path="login"] .placid-login-left {
+  color: rgba(255,255,255,0.92);
+}
+
+body[data-path="login"] .placid-login-left {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+
+  /* ✅ centers items horizontally */
+  justify-content: center;
+
+  /* ✅ centers items vertically inside each row */
+  align-items: center;
+
+  /* ✅ centers rows when wrapping happens */
+  align-content: center;
+
+  gap: 24px;
+  text-align: center;
+  padding: 20px;
+}
+
+body[data-path="login"] .login-hero img,
+body[data-path="login"] .placid-login-logo {
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.55));
+}
+
+body[data-path="login"] .login-hero h1,
+body[data-path="login"] .placid-login-left h1 {
+  color: #f4f5f7;
+  text-shadow: 0 10px 26px rgba(0,0,0,0.60);
+}
+
+/* If your logo is an image with faint text, give it a subtle backing */
+body[data-path="login"] .login-hero,
+body[data-path="login"] .placid-login-left {
+  background: rgba(10, 12, 12, 0.18);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
+  padding: 18px 18px;
+  backdrop-filter: blur(10px);
+}
+
+/* ===== Login card: keep it bright but “premium” ===== */
+body[data-path="login"] .login-content.page-card {
+  width: min(420px, 92vw);
+  padding: 32px;
+  border-radius: 22px;
+
+  /* Glass */
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+
+  /* Glass edge + depth */
+  border: 1px solid rgba(255,255,255,0.35);
+  box-shadow:
+    0 30px 80px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.4);
+
+  position: relative;
+}
+
+body[data-path="login"] .login-content.page-card::after {
+  content: "";
+  position: absolute;
+  inset: -20px;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at top,
+    rgba(255,255,255,0.25),
+    transparent 60%
+  );
+  z-index: -1;
+}
+
+/* Inputs */
+body[data-path="login"] .login-content input {
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+}
+
+body[data-path="login"] .login-content input:focus {
+  border-color: #f4c84c;
+  box-shadow: 0 0 0 3px rgba(244,200,76,0.25);
+}
+
+/* Button */
+body[data-path="login"] .btn-primary {
+  background: #f4c84c;
+  border: none;
+  color: #1f2937;
+  font-weight: 700;
+  border-radius: 999px;
+  box-shadow: 0 18px 40px rgba(244,200,76,0.18);
+}
+
+/* Optional: animate in */
+body[data-path="login"] .login-content {
+  animation: fadeUp 0.6s ease-out;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive: hide the big hero-2 on small screens */
+@media (max-width: 900px) {
+  body[data-path="login"] .page-content::after {
+    display: none;
+  }
+  body[data-path="login"] .page-content::before {
+    opacity: 0.18;
+    left: -120px;
+  }
+}
+
+/* “Continue learning” label (CSS-only) */
+body[data-path="login"] .login-content.page-card::before {
+  content: "CONTINUE LEARNING";
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+  color: rgba(31,41,55,0.55);
+  margin-bottom: 10px;
+}
+
+
+body[data-path="login"] .browse-courses-cta {
+  width: 100%;
+  max-width: 420px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 14px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 800;
+
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.88);
+
+  backdrop-filter: blur(10px);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+body[data-path="login"] .browse-courses-cta:hover {
+  background: rgba(255,255,255,0.14);
+  transform: translateY(-1px);
+}
+
+
+/* ===== Cursor follower (login page only) ===== */
+body[data-path="login"] .cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+
+  border: 2px solid rgba(46, 140, 120, 0.65); /* teal */
+  box-shadow: 0 0 12px rgba(46, 140, 120, 0.25);
+  background: transparent;
+
+  transform: translate(-50%, -50%);
+  transition: opacity 0.2s ease;
+  opacity: 0;
+}
+
+/* Show cursor only when mouse is moving */
+body[data-path="login"].cursor-active .cursor-ring {
+  opacity: 1;
+}
+
+/* Hover feedback on interactive elements */
+body[data-path="login"] a:hover ~ .cursor-ring,
+body[data-path="login"] button:hover ~ .cursor-ring {
+  transform: translate(-50%, -50%) scale(1.2);
+}
