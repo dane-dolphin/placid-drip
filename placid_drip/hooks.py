@@ -8,7 +8,14 @@ app_license = "mit"
 override_whitelisted_methods = {
   "lms.lms.utils.get_lesson": "placid_drip.overrides.lms_utils.get_lesson",
   "lms.lms.utils.get_course_outline": "placid_drip.overrides.lms_utils.get_course_outline",
+  # for rate limit
+  "lms.lms.utils.get_courses": "placid_drip.overrides.lms_utils.get_courses",
+  "lms.lms.utils.get_course_details": "placid_drip.overrides.lms_utils.get_course_details",
+  "lms.lms.utils.get_batches": "placid_drip.overrides.lms_utils.get_batches",
+  "lms.lms.utils.get_batch_details": "placid_drip.overrides.lms_utils.get_batch_details",
+  "lms.lms.utils.get_batch_courses": "placid_drip.overrides.lms_utils.get_batch_courses",
 }
+
 
 after_install = "placid_drip.website_bootstrap.set_home_to_lms"
 after_migrate = "placid_drip.website_bootstrap.set_home_to_lms"

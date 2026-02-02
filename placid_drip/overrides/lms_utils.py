@@ -1,6 +1,9 @@
 import frappe
+from frappe.rate_limiter import rate_limit
 from frappe.utils import now_datetime, get_datetime
 from placid_drip.access import resolve_user_batch_for_course, can_access_lesson
+from lms.lms import utils as lms_utils
+from placid_drip.constants import RATE_LIMIT, RATE_LIMIT_WINDOW
 
 LESSON_DTYPE = "Course Lesson"
 CHAPTER_DTYPE = "Course Chapter"
@@ -16,70 +19,8 @@ _FRAPPE_RPC_KEYS = {
 #     frappe.logger("placid_drip").warning(f"[drip-outline] {msg} {extra}".strip())
 
 
-# @frappe.whitelist()
-# def get_lesson(*args, **kwargs):
-    # clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
-
-    # # IMPORTANT: call original via direct import (avoid recursion)
-    # from lms.lms import utils as lms_utils
-    # result = lms_utils.get_lesson(*args, **clean_kwargs)
-
-    # lesson_doc = (result or {}).get("message") if isinstance(result, dict) and "message" in result else result
-    # lesson_doc = lesson_doc or {}
-
-    # course = lesson_doc.get("course") or clean_kwargs.get("course")
-    # lesson_name = lesson_doc.get("name") or clean_kwargs.get("lesson")
-
-    # # ✅ allow batch evaluator to view lesson content
-    # if course and _is_evaluator_for_course(frappe.session.user, course):
-    #     return result
-
-    # if _should_enforce_drip() and course and lesson_name:
-    #     allowed, reason, _next_at = can_access_lesson(frappe.session.user, course, lesson_name)
-    #     if not allowed:
-
-
-    #         frappe.throw(reason or "Lesson is locked.", frappe.PermissionError)
-
-    # return result
-
-# @frappe.whitelist()
-# def get_lesson(*args, **kwargs):
-#     clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
-
-#     # ✅ 1) Evaluator bypass (return FULL lesson doc; ignore enrollment)
-#     course = clean_kwargs.get("course") or clean_kwargs.get("course_name")
-#     chapter_no = clean_kwargs.get("chapter")
-#     lesson_no = clean_kwargs.get("lesson")
-
-    
-#     if course and chapter_no and lesson_no and _is_evaluator_for_course(frappe.session.user, course):
-#         lesson_name = _get_lesson_docname(course, chapter_no, lesson_no)
-#         if not lesson_name:
-#             return {}
-
-#         doc = frappe.get_doc(LESSON_DTYPE, lesson_name)
-#         return doc.as_dict()
-
-#     # ✅ 2) Everyone else: call upstream LMS (keeps preview-friendly behavior)
-#     from lms.lms import utils as lms_utils
-#     result = lms_utils.get_lesson(*args, **clean_kwargs)
-
-#     # ✅ 3) Student drip enforcement (your custom policy)
-#     lesson_doc = (result or {}).get("message") if isinstance(result, dict) and "message" in result else result
-#     lesson_doc = lesson_doc or {}
-
-#     # Some LMS responses don't include lesson docname; fall back
-#     lesson_name = lesson_doc.get("name") or None
-
-#     if _should_enforce_drip() and course and lesson_name:
-#         allowed, reason, _next_at = can_access_lesson(frappe.session.user, course, lesson_name)
-#         if not allowed:
-#             frappe.throw(reason or "Lesson is locked.", frappe.PermissionError)
-
-#     return result
-
 @frappe.whitelist()
+@rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_lesson(*args, **kwargs):
     clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
 
@@ -87,7 +28,6 @@ def get_lesson(*args, **kwargs):
     chapter = clean_kwargs.get("chapter")
     lesson = clean_kwargs.get("lesson")
 
-    from lms.lms import utils as lms_utils
     result = lms_utils.get_lesson(*args, **clean_kwargs)
 
     # LMS may return dict/no_preview OR full lesson dict
@@ -138,7 +78,8 @@ def get_lesson(*args, **kwargs):
 
     return result
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_course_outline(*args, **kwargs):
     # _log("OVERRIDE HIT", user=frappe.session.user, args_len=len(args), kwargs_keys=list(kwargs.keys()))
 
@@ -146,7 +87,6 @@ def get_course_outline(*args, **kwargs):
     clean_kwargs = {k: v for k, v in kwargs.items() if k not in _FRAPPE_RPC_KEYS}
     # _log("clean_kwargs prepared", clean_kwargs=clean_kwargs) 
     # 2) call original
-    from lms.lms import utils as lms_utils
     # _log("calling original lms.lms.utils.get_course_outline")
     result = lms_utils.get_course_outline(*args, **clean_kwargs)
     # _log("original returned", result_type=type(result).__name__, has_message=isinstance(result, dict) and "message" in result)
@@ -159,6 +99,14 @@ def get_course_outline(*args, **kwargs):
     if not outline:
         # _log("outline empty -> returning outline as-is (empty)")
         return outline  # return list/None, not dict
+    
+    if frappe.session.user == "Guest":
+        for ch in outline:
+            for lesson in ch.get("lessons", []):
+                lesson["is_locked"] = 1
+                lesson["opens_at"] = None
+                lesson["lock_reason"] = "Please log in to view lessons."
+        return outline
 
     enforce = _should_enforce_drip()
     # _log("should_enforce_drip evaluated", enforce=enforce)
@@ -259,7 +207,7 @@ def get_course_outline(*args, **kwargs):
 
 def _should_enforce_drip() -> bool:
     if frappe.session.user == "Guest":
-        return False
+        return True
 
     roles = set(frappe.get_roles(frappe.session.user))
 
@@ -282,68 +230,43 @@ def _is_evaluator_for_course(user: str, course: str) -> bool:
     )
 
 
-# def _get_lesson_docname(course: str, chapter_idx: int, lesson_idx: int) -> str | None:
-#     lesson_number = f"{int(chapter_idx)}.{int(lesson_idx)}"
-#     return frappe.db.get_value(
-#         LESSON_DTYPE,
-#         {"course": course, "number": lesson_number},
-#         "name",
-#     )
+# -------------------------
+# COURSES
+# -------------------------
 
-# # def _get_lesson_docname(course: str, chapter_no: int, lesson_no: int) -> str | None:
-# #     # chapter_no and lesson_no are 1-based (from the route params)
-# #     chapter_name = frappe.db.get_value(
-# #         CHAPTER_DTYPE,
-# #         {"course": course, "idx": int(chapter_no)},
-# #         "name",
-# #     )
-# #     if not chapter_name:
-# #         return None
-
-# #     # Lesson Reference is the child table; fieldname is `lesson`
-# #     return frappe.db.get_value(
-# #         "Lesson Reference",
-# #         {
-# #             "parenttype": CHAPTER_DTYPE,
-# #             "parent": chapter_name,
-# #             "parentfield": "lessons",
-# #             "idx": int(lesson_no),
-# #         },
-# #         "lesson",
-# #     )
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
+def get_courses(filters=None, start=0):
+    return lms_utils.get_courses(filters=filters, start=start)
 
 
-# def _get_lesson_docname(course: str, chapter_no, lesson_no) -> str | None:
-#     try:
-#         chapter_no = int(chapter_no)
-#         lesson_no = int(lesson_no)
-#     except (TypeError, ValueError):
-#         return None
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
+def get_course_details(course):
+    return lms_utils.get_course_details(course)
 
-#     chapters = frappe.get_all(
-#         "Course Chapter",
-#         filters={"course": course},
-#         fields=["name"],
-#         order_by="idx asc, creation asc"
-#     )
 
-#     if not chapters or chapter_no < 1 or chapter_no > len(chapters):
-#         return None
+# -------------------------
+# BATCHES
+# -------------------------
 
-#     chapter_name = chapters[chapter_no - 1]["name"]
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
+def get_batches(filters=None, start=0, order_by="start_date"):
+    return lms_utils.get_batches(
+        filters=filters,
+        start=start,
+        order_by=order_by,
+    )
 
-#     refs = frappe.get_all(
-#         "Lesson Reference",
-#         filters={
-#             "parenttype": "Course Chapter",
-#             "parent": chapter_name,
-#             "parentfield": "lessons",
-#         },
-#         fields=["lesson"],
-#         order_by="idx asc"
-#     )
 
-#     if not refs or lesson_no < 1 or lesson_no > len(refs):
-#         return None
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
+def get_batch_details(batch):
+    return lms_utils.get_batch_details(batch)
 
-#     return refs[lesson_no - 1]["lesson"]
+
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
+def get_batch_courses(batch):
+    return lms_utils.get_batch_courses(batch)

@@ -5,9 +5,28 @@ body[data-path="login"] {
   overflow-x: hidden;
 
   background-image:
-    radial-gradient(1200px 600px at 20% 20%, rgba(46, 140, 120, 0.18), rgba(0,0,0,0) 55%),
-    radial-gradient(900px 500px at 80% 30%, rgba(244, 200, 76, 0.10), rgba(0,0,0,0) 60%),
-    linear-gradient(to bottom, rgba(10, 12, 12, 0.92), rgba(10, 12, 12, 0.92));
+  /* Green glow (left) */
+  radial-gradient(
+    900px 500px at 18% 22%,
+    rgba(46, 180, 150, 0.35),
+    rgba(46, 140, 120, 0.18) 35%,
+    rgba(0, 0, 0, 0) 65%
+  ),
+
+  /* Yellow glow (right) */
+  radial-gradient(
+    700px 420px at 82% 28%,
+    rgba(255, 215, 90, 0.28),
+    rgba(244, 200, 76, 0.14) 40%,
+    rgba(0, 0, 0, 0) 70%
+  ),
+
+  /* Base dark */
+  linear-gradient(
+    to bottom,
+    rgba(10, 12, 12, 0.94),
+    rgba(10, 12, 12, 0.94)
+  );
 
   /* ✅ Key: gradients must fill the whole page */
   background-repeat: no-repeat, no-repeat, repeat;
@@ -19,9 +38,8 @@ body[data-path="login"] {
 /* Right column: center contents but don't shrink widths */
 body[data-path="login"] .placid-login-right {
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   align-items: center;   /* centers the column */
-  gap: 16px;
   width: 100%;
   z-index: 5;
   position: relative;
@@ -37,7 +55,7 @@ body[data-path="login"] .placid-login-right .login-content.page-card {
 body[data-path="login"] .placid-login-right .browse-courses-cta {
   width: min(420px, 92vw);
   max-width: 420px;
-  margin-top: clamp(-30vh, -30vh, -4vh);
+  margin-top: 2vh;
   position: relative;
   z-index: 10;
 }
