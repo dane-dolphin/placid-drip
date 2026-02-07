@@ -16,6 +16,17 @@ override_whitelisted_methods = {
   "lms.lms.utils.get_batch_courses": "placid_drip.overrides.lms_utils.get_batch_courses",
 }
 
+doc_events = {
+    "LMS Batch Enrollment": {
+        "on_trash": "placid_drip.triggered_events.batch_cleanup.on_batch_enrollment_removed",
+    },
+    "LMS Quiz Submission": {
+        "after_insert": "placid_drip.triggered_events.lesson_quiz_progress_cleanup.on_quiz_submission_after_insert",
+        # (optional) if your system updates same submission doc later:
+        # "on_update": "placid_drip.lms.quiz_progress.on_quiz_submitted",
+    }
+}
+
 
 after_install = "placid_drip.website_bootstrap.set_home_to_lms"
 after_migrate = "placid_drip.website_bootstrap.set_home_to_lms"

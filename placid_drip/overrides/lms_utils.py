@@ -18,6 +18,79 @@ _FRAPPE_RPC_KEYS = {
 #     extra = " ".join([f"{k}={repr(v)}" for k, v in kv.items()])
 #     frappe.logger("placid_drip").warning(f"[drip-outline] {msg} {extra}".strip())
 
+def _should_enforce_drip() -> bool:
+    if frappe.session.user == "Guest":
+        return True
+
+    roles = set(frappe.get_roles(frappe.session.user))
+
+    # staff can always see everything
+    if roles & {"System Manager", "LMS Instructor"}:
+        return False
+
+    return "LMS Student" in roles
+
+def _is_admin_or_moderator(user: str) -> bool:
+    roles = set(frappe.get_roles(user))
+    return user == "Administrator" or bool(roles & {"System Manager", "Moderator"})
+
+def _is_evaluator_for_course(user: str, course: str) -> bool:
+    return bool(
+        frappe.db.exists(
+            "Batch Course",
+            {
+                "course": course,
+                "evaluator": user,
+                "parenttype": "LMS Batch",
+            },
+        )
+    )
+
+
+
+def _resolve_lesson_docname(course: str, chapter_idx: int, lesson_idx: int) -> str | None:
+    chapter_name = frappe.db.get_value(
+        "Chapter Reference",
+        {"parent": course, "idx": int(chapter_idx)},
+        "chapter",
+    )
+    if not chapter_name:
+        return None
+
+    return frappe.db.get_value(
+        "Lesson Reference",
+        {"parent": chapter_name, "idx": int(lesson_idx)},
+        "lesson",
+    )
+
+
+def _is_locked_for_user(course: str, lesson_name: str) -> tuple[bool, str | None, str | None]:
+    """
+    Returns (locked, opens_at_str, reason)
+    Uses your existing resolve_user_batch_for_course().
+    """
+    batch = resolve_user_batch_for_course(frappe.session.user, course)
+    if not batch:
+        return True, None, "Not enrolled in a batch for this course."
+
+    row = frappe.db.get_value(
+        "Batch Lesson Access",
+        {"batch": batch, "lesson": lesson_name},
+        ["available_from", "force_lock"],
+        as_dict=True,
+    )
+
+    if not row:
+        return False, None, None
+
+    if row.get("force_lock"):
+        return True, None, "Locked by cohort schedule"
+
+    opens = get_datetime(row.get("available_from"))
+    if opens and now_datetime() < opens:
+        return True, str(opens), f"Opens on {opens}"
+
+    return False, None, None
 
 @frappe.whitelist()
 @rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
@@ -27,6 +100,28 @@ def get_lesson(*args, **kwargs):
     course = clean_kwargs.get("course") or clean_kwargs.get("course_name")
     chapter = clean_kwargs.get("chapter")
     lesson = clean_kwargs.get("lesson")
+    is_eval = _is_evaluator_for_course(frappe.session.user, course) if course else False
+
+
+    if (
+        frappe.session.user != "Guest"
+        and course and chapter and lesson
+        and not is_eval
+        and not _is_admin_or_moderator(frappe.session.user)
+        and _should_enforce_drip()
+    ):
+        lesson_name = _resolve_lesson_docname(course, int(chapter), int(lesson))
+        if lesson_name:
+            locked, opens_at, reason = _is_locked_for_user(course, lesson_name)
+            if locked:
+                # Return a "locked" payload; frontend already understands no_preview
+                return {
+                    "no_preview": 1,
+                    "is_locked": 1,
+                    "opens_at": opens_at,
+                    "lock_reason": reason,
+                }
+
 
     result = lms_utils.get_lesson(*args, **clean_kwargs)
 
@@ -37,7 +132,7 @@ def get_lesson(*args, **kwargs):
         and course
         and chapter
         and lesson
-        and _is_evaluator_for_course(frappe.session.user, course)
+        and is_eval
     ):
         # ✅ Resolve the SAME way LMS does
         chapter_name = frappe.db.get_value("Chapter Reference", {"parent": course, "idx": int(chapter)}, "chapter")
@@ -73,6 +168,8 @@ def get_lesson(*args, **kwargs):
         lesson_details.paid_certificate = course_info.paid_certificate
         lesson_details.disable_self_learning = course_info.disable_self_learning
         lesson_details.videos = lms_utils.get_video_details(lesson_name)
+
+        # ✅ NEW: Students cannot open locked lessons (even if they guess the URL)
 
         return lesson_details
 
@@ -205,29 +302,6 @@ def get_course_outline(*args, **kwargs):
     # IMPORTANT: return outline (list) so API response becomes {"message": [ ... ]}
     return outline
 
-def _should_enforce_drip() -> bool:
-    if frappe.session.user == "Guest":
-        return True
-
-    roles = set(frappe.get_roles(frappe.session.user))
-
-    # staff can always see everything
-    if roles & {"System Manager", "LMS Instructor"}:
-        return False
-
-    return "LMS Student" in roles
-
-def _is_evaluator_for_course(user: str, course: str) -> bool:
-    return bool(
-        frappe.db.exists(
-            "Batch Course",
-            {
-                "course": course,
-                "evaluator": user,
-                "parenttype": "LMS Batch",
-            },
-        )
-    )
 
 
 # -------------------------

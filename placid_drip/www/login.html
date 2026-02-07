@@ -1,10 +1,3 @@
-{# If already logged-in, don't render login page #}
-{% if frappe.session.user != "Guest" %}
-  <script>
-    // send logged-in users away from /login
-    window.location.replace("/"); // or "/"
-  </script>
-{% endif %}
 {% extends "templates/web.html" %}
 
 {% block head_include %}
@@ -14,7 +7,13 @@
 {% endblock %}
 
 {% block page_content %}
-  <!-- PLACID LOGIN WRAPPER -->
+
+  {# If already logged-in, don't render login page #}
+  {% if frappe.session.user != "Guest" %}
+    <script>
+      window.location.replace("/");
+    </script>
+  {% endif %}
 
   <div class="placid-login-shell">
     <div class="placid-login-left">
@@ -22,15 +21,14 @@
       <img class="img-hero" src="/assets/placid_drip/images/hero-1.png" />
     </div>
 
-<div class="placid-login-right">
-  {% include "frappe/www/login.html" %}
-
-  <a class="browse-courses-cta" href="/courses">Browse Courses</a>
-</div>
+    <div class="placid-login-right">
+      {% include "frappe/www/login.html" %}
+      <a class="browse-courses-cta" href="/courses">Browse Courses</a>
+    </div>
   </div>
 {% endblock %}
 
-{% block script_include %}
+{% block script %}
   {{ super() }}
   <script src="/assets/placid_drip/js/placid-login.js"></script>
 {% endblock %}
