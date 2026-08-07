@@ -1,6 +1,8 @@
 import frappe
 from frappe.model.document import Document
 
+from placid_drip.facilitator import can_manage_batch_course
+
 class BatchLessonAccess(Document):
     def autoname(self):
         # exactly ONE doc per (batch, course, lesson)
@@ -28,31 +30,20 @@ class BatchLessonAccess(Document):
             )
 
     def _enforce_evaluator_scope(self):
+        """Restrict locks to the batch/course the user actually facilitates.
+
+        Previously this required the Batch Evaluator role specifically and the
+        per-course evaluator assignment, which locked out both Moderators and
+        instructors. Instructors are expected to be able to lock the lessons of a
+        course they teach.
+        """
         user = frappe.session.user
-
-        # allow admins/system managers to bypass
-        if user == "Administrator" or "System Manager" in frappe.get_roles(user):
-            return
-
-        # must have Batch Evaluator role
-        if "Batch Evaluator" not in frappe.get_roles(user):
-            frappe.throw("Only Batch Evaluators can create lesson locks.", frappe.PermissionError)
 
         if not (self.batch and self.course and self.lesson):
             frappe.throw("Batch, Course, and Lesson are required.", frappe.ValidationError)
 
-        # evaluator must be assigned for that course in that batch
-        allowed = frappe.db.exists(
-            "Batch Course",
-            {
-                "parenttype": "LMS Batch",
-                "parent": self.batch,
-                "course": self.course,
-                "evaluator": user,
-            },
-        )
-        if not allowed:
+        if not can_manage_batch_course(user, self.batch, self.course):
             frappe.throw(
-                "You can only create locks for batches/courses you evaluate.",
+                "You can only create locks for batches/courses you evaluate or instruct.",
                 frappe.PermissionError,
             )

@@ -4,6 +4,12 @@ from frappe.utils import now_datetime
 from frappe.utils.data import get_datetime
 import lms.lms.utils as lms_utils
 
+from placid_drip.facilitator import (
+    can_manage_batch_course,
+    get_facilitated_batch_names,
+    get_instructed_course_names,
+)
+
 
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
@@ -21,17 +27,19 @@ def get_evaluator_batches(doctype, txt, searchfield, start, page_len, filters=No
             limit %(start)s, %(page_len)s
         """, {"txt": f"%{txt}%", "start": start, "page_len": page_len})
 
-    # evaluator-only batches 
+    # Batches the user evaluates OR instructs (previously evaluator-only).
+    names = get_facilitated_batch_names(user)
+    if not names:
+        return []
+
     return frappe.db.sql("""
         select b.name, b.title
         from `tabLMS Batch` b
-        join `tabBatch Course` bc on bc.parent = b.name and bc.parenttype='LMS Batch'
-        where bc.evaluator=%(user)s
+        where b.name in %(names)s
           and (b.name like %(txt)s or b.title like %(txt)s)
-        group by b.name, b.title
         order by b.modified desc
         limit %(start)s, %(page_len)s
-    """, {"user": user, "txt": f"%{txt}%", "start": start, "page_len": page_len})
+    """, {"names": names, "txt": f"%{txt}%", "start": start, "page_len": page_len})
 
 
 @frappe.whitelist()
@@ -68,7 +76,11 @@ def get_evaluator_courses(doctype, txt, searchfield, start, page_len, filters=No
             },
         )
 
-    # Evaluator: only courses they evaluate in that batch
+    # Courses in that batch the user evaluates, instructs, or that sit in a batch
+    # they instruct. Previously evaluator-only, so instructors saw an empty list.
+    instructs_batch = batch in get_facilitated_batch_names(user)
+    instructed_courses = get_instructed_course_names(user) or [""]
+
     return frappe.db.sql(
         """
         SELECT DISTINCT
@@ -79,7 +91,11 @@ def get_evaluator_courses(doctype, txt, searchfield, start, page_len, filters=No
         WHERE
             bc.parenttype='LMS Batch'
             AND bc.parent=%(batch)s
-            AND bc.evaluator=%(user)s
+            AND (
+                bc.evaluator=%(user)s
+                OR %(instructs_batch)s = 1
+                OR c.name IN %(instructed_courses)s
+            )
             AND (c.name LIKE %(txt)s OR c.title LIKE %(txt)s)
         ORDER BY c.modified DESC
         LIMIT %(start)s, %(page_len)s
@@ -87,6 +103,8 @@ def get_evaluator_courses(doctype, txt, searchfield, start, page_len, filters=No
         {
             "batch": batch,
             "user": user,
+            "instructs_batch": 1 if instructs_batch else 0,
+            "instructed_courses": instructed_courses,
             "txt": f"%{txt}%",
             "start": start,
             "page_len": page_len,
@@ -94,29 +112,13 @@ def get_evaluator_courses(doctype, txt, searchfield, start, page_len, filters=No
     )
 
 
-def _is_admin_or_moderator(user: str) -> bool:
-    roles = frappe.get_roles(user)
-    return user == "Administrator" or "System Manager" in roles or "Moderator" in roles
-
-
-def _is_evaluator_for_batch_course(user: str, batch: str, course: str) -> bool:
-    return bool(
-        frappe.db.exists(
-            "Batch Course",
-            {
-                "parenttype": "LMS Batch",
-                "parent": batch,
-                "course": course,
-                "evaluator": user,
-            },
-        )
-    )
-
-
 def _require_course_lock_access(user: str, batch: str, course: str):
-    if _is_admin_or_moderator(user):
-        return
-    if _is_evaluator_for_batch_course(user, batch, course):
+    """Evaluators AND instructors may schedule/lock lessons.
+
+    This used to accept only the per-course evaluator, so an instructor on the
+    batch or on the course was refused with "Not permitted" (HTTP 417).
+    """
+    if can_manage_batch_course(user, batch, course):
         return
     frappe.throw(_("Not permitted"))
 
@@ -187,21 +189,9 @@ def bulk_save_batch_lesson_access(batch: str, course: str, changes):
     if not batch or not course:
         frappe.throw(_("batch and course are required"))
 
-    # same permission logic as above (copy/import if you put in another module)
-    roles = frappe.get_roles(user)
-    is_adminish = user == "Administrator" or "System Manager" in roles or "Moderator" in roles
-    if not is_adminish:
-        ok = frappe.db.exists(
-            "Batch Course",
-            {
-                "parenttype": "LMS Batch",
-                "parent": batch,
-                "course": course,
-                "evaluator": user,
-            },
-        )
-        if not ok:
-            frappe.throw(_("Not permitted"))
+    # Shared with get_batch_course_lock_details - this used to be a divergent copy
+    # that only accepted the per-course evaluator.
+    _require_course_lock_access(user, batch, course)
 
     # parse JSON string if needed
     if isinstance(changes, str):

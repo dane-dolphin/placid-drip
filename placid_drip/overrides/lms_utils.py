@@ -35,13 +35,29 @@ def _is_admin_or_moderator(user: str) -> bool:
     return user == "Administrator" or bool(roles & {"System Manager", "Moderator"})
 
 def _is_evaluator_for_course(user: str, course: str) -> bool:
+    """Evaluator on, or instructor of, this course - either bypasses the drip lock.
+
+    Instructors were previously not recognised here, so an instructor viewing
+    their own course saw it locked exactly like a student.
+    """
+    if frappe.db.exists(
+        "Batch Course",
+        {
+            "course": course,
+            "evaluator": user,
+            "parenttype": "LMS Batch",
+        },
+    ):
+        return True
+
     return bool(
         frappe.db.exists(
-            "Batch Course",
+            "Course Instructor",
             {
-                "course": course,
-                "evaluator": user,
-                "parenttype": "LMS Batch",
+                "parenttype": "LMS Course",
+                "parentfield": "instructors",
+                "parent": course,
+                "instructor": user,
             },
         )
     )

@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from placid_drip.facilitator import get_facilitated_batch_names
+
 DT_BATCH = "LMS Batch"
 DT_BATCH_COURSE = "Batch Course"
 DT_COURSE_LESSON = "Course Lesson"
@@ -16,32 +18,24 @@ def _is_admin_or_moderator(user: str) -> bool:
 
 
 def _can_access_batch(user: str, batch: str) -> bool:
+    # Evaluators AND instructors, not evaluators only.
     if _is_admin_or_moderator(user):
         return True
-    return bool(
-        frappe.db.exists(
-            DT_BATCH_COURSE,
-            {"parenttype": DT_BATCH, "parent": batch, "evaluator": user},
-        )
-    )
+    return batch in get_facilitated_batch_names(user)
 
 
 def _get_batch_student_ids(batch: str) -> list[str]:
-    doc = frappe.get_doc(DT_BATCH, batch)
-    students = getattr(doc, "students", None) or []
+    """Members enrolled in the batch.
 
-    ids: list[str] = []
-    for s in students:
-        if isinstance(s, str):
-            ids.append(s)
-        elif isinstance(s, dict) and s.get("student"):
-            ids.append(s["student"])
-        elif hasattr(s, "student"):
-            ids.append(s.student)
-        elif hasattr(s, "user"):
-            ids.append(s.user)
-
-    return [x for x in ids if x]
+    This used to read `LMS Batch.students`, a field that does not exist - students
+    moved to the LMS Batch Enrollment doctype. It therefore always returned an
+    empty list, which made `list_batch_quiz_submissions` always return [].
+    """
+    return frappe.get_all(
+        "LMS Batch Enrollment",
+        filters={"batch": batch},
+        pluck="member",
+    )
 
 
 @frappe.whitelist()

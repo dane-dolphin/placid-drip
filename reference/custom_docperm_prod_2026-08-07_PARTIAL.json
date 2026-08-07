@@ -1,0 +1,413 @@
+{
+  "site": "placid.local",
+  "captured_at": "2026-08-07 (reconstructed from two partial bench dumps)",
+  "complete": false,
+  "_warning": "PARTIAL. Flags captured for 6 doctypes only; the other 7 carry role names but no flags (_flags_unknown). if_owner/permlevel/submit/cancel/amend/import/print/email/select were never captured for ANY row. Use a real dump from placid_drip.permissions_backup.dump instead wherever possible.",
+  "row_count": 52,
+  "rows": [
+    {
+      "parent": "Batch Lesson Access",
+      "role": "System Manager",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "Batch Lesson Access",
+      "role": "Batch Evaluator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "Course Lesson",
+      "role": "System Manager",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "Course Lesson",
+      "role": "Batch Evaluator",
+      "create": 0,
+      "read": 1,
+      "write": 0,
+      "delete": 0,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "Course Lesson",
+      "role": "Moderator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "Course Lesson",
+      "role": "Course Creator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 0,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Batch Enrollment",
+      "role": "LMS Student",
+      "create": 1,
+      "read": 1,
+      "write": 0,
+      "delete": 0,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Batch Enrollment",
+      "role": "Moderator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Batch Enrollment",
+      "role": "Batch Evaluator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 0,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "LMS Batch Enrollment",
+      "role": "System Manager",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Course",
+      "role": "Batch Evaluator",
+      "create": 0,
+      "read": 1,
+      "write": 0,
+      "delete": 0,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "LMS Course",
+      "role": "Moderator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Course",
+      "role": "LMS Student",
+      "create": 0,
+      "read": 1,
+      "write": 0,
+      "delete": 0,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "LMS Course",
+      "role": "System Manager",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Course",
+      "role": "Course Creator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "LMS Enrollment",
+      "role": "System Manager",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Enrollment",
+      "role": "Moderator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Enrollment",
+      "role": "Batch Evaluator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 0,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "LMS Enrollment",
+      "role": "LMS Student",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 0,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Quiz",
+      "role": "Moderator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Quiz",
+      "role": "System Manager",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Quiz",
+      "role": "LMS Student",
+      "create": 0,
+      "read": 1,
+      "write": 0,
+      "delete": 0,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Quiz",
+      "role": "Course Creator",
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "parent": "LMS Quiz",
+      "role": "Batch Evaluator",
+      "create": 0,
+      "read": 1,
+      "write": 0,
+      "delete": 0,
+      "report": 0,
+      "export": 1,
+      "share": 0
+    },
+    {
+      "parent": "LMS Batch",
+      "role": "System Manager",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Batch",
+      "role": "Batch Evaluator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Batch",
+      "role": "LMS Student",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Batch",
+      "role": "Moderator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Quiz Submission",
+      "role": "System Manager",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Quiz Submission",
+      "role": "LMS Student",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Quiz Submission",
+      "role": "Batch Evaluator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Course Evaluator",
+      "role": "Moderator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Course Evaluator",
+      "role": "System Manager",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Course Evaluator",
+      "role": "Batch Evaluator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Assignment Submission",
+      "role": "Moderator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Assignment Submission",
+      "role": "System Manager",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Assignment Submission",
+      "role": "LMS Student",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Assignment Submission",
+      "role": "Batch Evaluator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Assignment Submission",
+      "role": "Course Creator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Programming Exercise Submission",
+      "role": "Course Creator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Programming Exercise Submission",
+      "role": "LMS Student",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Programming Exercise Submission",
+      "role": "System Manager",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Programming Exercise Submission",
+      "role": "Batch Evaluator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "LMS Programming Exercise Submission",
+      "role": "Moderator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Topic",
+      "role": "Batch Evaluator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Topic",
+      "role": "LMS Student",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Topic",
+      "role": "Course Creator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Topic",
+      "role": "Moderator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Reply",
+      "role": "Batch Evaluator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Reply",
+      "role": "Course Creator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Reply",
+      "role": "Moderator",
+      "_flags_unknown": true
+    },
+    {
+      "parent": "Discussion Reply",
+      "role": "LMS Student",
+      "_flags_unknown": true
+    }
+  ]
+}
