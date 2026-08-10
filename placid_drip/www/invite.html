@@ -1,0 +1,43 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ _("Your invitation") }}{% endblock %}
+
+{% block page_content %}
+<div class="invite-page">
+	{% if accepted %}
+		<h1>{{ _("You're in") }}</h1>
+		<p>{{ _("You have been enrolled in:") }}</p>
+		<ul>
+			{% for title in batches %}<li>{{ title }}</li>{% endfor %}
+		</ul>
+		<p><a class="btn btn-primary" href="/lms/batches">{{ _("Go to my batches") }}</a></p>
+
+	{% elif invite_valid %}
+		<h1>{{ _("You have been invited") }}</h1>
+		<p>{{ _("You have been invited to join:") }}</p>
+		<ul>
+			{% for title in batches %}<li>{{ title }}</li>{% endfor %}
+		</ul>
+
+		{% if message %}
+			<p class="text-muted">{{ message }}</p>
+		{% else %}
+			<p>
+				{{ _("Sign up or log in with {0} to accept.").format(email) }}
+			</p>
+			<p><a class="btn btn-primary" href="{{ login_url }}">{{ _("Continue") }}</a></p>
+		{% endif %}
+
+	{% else %}
+		<h1>{{ _("Invitation unavailable") }}</h1>
+		<p>{{ message }}</p>
+	{% endif %}
+</div>
+
+<style>
+	.invite-page { max-width: 34rem; margin: 4rem auto; }
+	.invite-page h1 { margin-bottom: 1rem; }
+	.invite-page ul { margin: 1rem 0 1.5rem 1.25rem; }
+	.invite-page li { margin-bottom: 0.25rem; }
+</style>
+{% endblock %}

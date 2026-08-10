@@ -14,9 +14,20 @@ override_whitelisted_methods = {
   "lms.lms.utils.get_batches": "placid_drip.overrides.lms_utils.get_batches",
   "lms.lms.utils.get_batch_details": "placid_drip.overrides.lms_utils.get_batch_details",
   "lms.lms.utils.get_batch_courses": "placid_drip.overrides.lms_utils.get_batch_courses",
+  # let facilitators remove students from batches they run
+  "lms.lms.api.delete_documents": "placid_drip.overrides.lms_api.delete_documents",
+  # surface Organization, which upstream's hardcoded User field lists omit
+  "lms.lms.api.get_profile_details": "placid_drip.overrides.lms_api.get_profile_details",
+  "lms.lms.utils.get_batch_students": "placid_drip.overrides.lms_utils.get_batch_students",
 }
 
 doc_events = {
+    # Applies any pending Student Invite for this address. Fires however the
+    # account is created - invite link, admin adding them in Desk, social login -
+    # because the invite is matched on email rather than on a redeemed token.
+    "User": {
+        "after_insert": "placid_drip.invites.accept_for_user",
+    },
     "LMS Batch Enrollment": {
         "on_trash": "placid_drip.triggered_events.batch_cleanup.on_batch_enrollment_removed",
     },

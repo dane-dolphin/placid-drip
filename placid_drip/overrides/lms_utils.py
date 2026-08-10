@@ -3,6 +3,8 @@ from frappe.rate_limiter import rate_limit
 from frappe.utils import now_datetime, get_datetime
 from placid_drip.access import resolve_user_batch_for_course, can_access_lesson
 from lms.lms import utils as lms_utils
+from placid_drip import membership
+from placid_drip.api import course_levels
 from placid_drip.constants import RATE_LIMIT, RATE_LIMIT_WINDOW
 
 LESSON_DTYPE = "Course Lesson"
@@ -327,7 +329,83 @@ def get_course_outline(*args, **kwargs):
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_courses(filters=None, start=0):
-    return lms_utils.get_courses(filters=filters, start=start)
+    filters = frappe.parse_json(filters) if isinstance(filters, str) else filters
+    filters = _restrict_to_published(filters)
+    filters = course_levels.apply_level_filter(filters)
+
+    courses = lms_utils.get_courses(filters=filters, start=start)
+
+    return _attach_levels(courses)
+
+
+#: Roles that may see unpublished courses in the catalogue. Course Creator is in
+#: here because authors need to find their own drafts; Batch Evaluator is
+#: deliberately not, because a facilitator runs batches rather than writing
+#: courses. Kept separate from `_is_admin_or_moderator` above, which answers a
+#: different question (who bypasses the drip lock) for different callers.
+DRAFT_VISIBLE_ROLES = {"System Manager", "Moderator", "Course Creator"}
+
+
+def _can_see_drafts(user: str) -> bool:
+    if user == "Guest":
+        return False
+
+    if user == "Administrator":
+        return True
+
+    return bool(set(frappe.get_roles(user)) & DRAFT_VISIBLE_ROLES)
+
+
+def _restrict_to_published(filters):
+    """Force `published = 1` for anyone outside `DRAFT_VISIBLE_ROLES`.
+
+    Facilitators, students and guests see the published catalogue only. Enforced
+    here rather than by hiding the Unpublished tab, because the tab was never what
+    was protecting anything: `lms_utils.get_courses` builds its list with
+    `frappe.get_all`, which by documented design "will not check for permissions",
+    and LMS ships `permission_query_conditions` for LMS Course commented out. The
+    endpoint is also `allow_guest`. So before this, any caller at all could pass
+    `{"published": 0}` and be handed the draft catalogue.
+
+    Overwrites rather than merges: a caller asking for `published = 0` is asking
+    for exactly what this exists to refuse.
+    """
+    filters = dict(filters or {})
+
+    if _can_see_drafts(frappe.session.user):
+        return filters
+
+    filters["published"] = 1
+    return filters
+
+
+def _attach_levels(courses):
+    """Add `level` to each course row.
+
+    Upstream's `get_course_fields()` is a hardcoded list that knows nothing about
+    our Custom Field, so `level` never comes back from `lms_utils.get_courses`.
+    Re-fetching it in one extra query is deliberately preferred over
+    reimplementing `get_courses` here: that function also layers on featured
+    courses, enrollment state and price formatting, and a fork of it would drift
+    from upstream on the next pull.
+    """
+    if not courses or not frappe.get_meta("LMS Course").has_field("level"):
+        return courses
+
+    names = [c["name"] for c in courses]
+    levels = dict(
+        frappe.get_all(
+            "LMS Course",
+            filters={"name": ["in", names]},
+            fields=["name", "level"],
+            as_list=True,
+        )
+    )
+
+    for course in courses:
+        course["level"] = levels.get(course["name"])
+
+    return courses
 
 
 @frappe.whitelist(allow_guest=True)
@@ -360,3 +438,17 @@ def get_batch_details(batch):
 @rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_batch_courses(batch):
     return lms_utils.get_batch_courses(batch)
+
+
+@frappe.whitelist()
+def get_batch_students(batch):
+    """Upstream student rows plus each student's organization.
+
+    Not `allow_guest`, matching upstream - a batch roster is staff-facing.
+
+    Keyed on `email` rather than `name`: upstream overwrites `name` on each row
+    with the LMS Batch Enrollment id, so `name` here is not a user at all.
+    """
+    students = lms_utils.get_batch_students(batch)
+
+    return membership.attach_organization(students, user_key="email")
