@@ -184,10 +184,21 @@ def revoke_invite(name):
 
 @frappe.whitelist()
 def resend_invite(name):
+	"""Re-send whichever email can actually get this person in.
+
+	Once the account exists - which is now the normal case, since invites
+	provision it up front - the invite link is useless to someone who has no
+	password and cannot self-register one. The password-setup email is the one
+	that helps, so that is what gets resent.
+	"""
 	_assert_signed_in()
 	invite = _get_scoped_invite(name)
 
-	if invite.status != "Pending":
-		frappe.throw(_("Only a pending invite can be resent."))
+	if invite.status == "Cancelled":
+		frappe.throw(_("This invite was cancelled."))
 
-	return {"sent": invites.send_invite_email(invite)}
+	user = invite.accepted_user or frappe.db.exists("User", {"email": invite.email})
+	if user:
+		return {"sent": invites.resend_account_setup(user), "kind": "password"}
+
+	return {"sent": invites.send_invite_email(invite), "kind": "invite"}

@@ -28,6 +28,11 @@ from placid_drip.facilitator import get_facilitated_batch_names, is_staff
 #: tabs or plain spaces. Pasting a column out of a spreadsheet has to just work.
 SPLIT_PATTERN = re.compile(r"[,;\s]+")
 
+#: `Anna Smith <anna@example.com>` - the shape you get pasting out of a mail client.
+#: The display name is consumed along with the brackets, not just stripped off the
+#: address, so it never reaches the splitter and gets reported as a bad address.
+ANGLE_PATTERN = re.compile(r'(?:"[^"]*"\s*|[^,;<>]*)<([^<>@\s]+@[^<>@\s]+)>')
+
 
 def parse_emails(raw) -> tuple[list[str], list[str]]:
 	"""Split a pasted blob into (valid, invalid) address lists.
@@ -35,12 +40,15 @@ def parse_emails(raw) -> tuple[list[str], list[str]]:
 	Order is preserved and duplicates are dropped, so the facilitator gets a
 	result list they can actually reconcile against what they pasted.
 	"""
-	if isinstance(raw, (list, tuple)):
-		candidates = []
-		for item in raw:
-			candidates.extend(SPLIT_PATTERN.split(str(item or "")))
-	else:
-		candidates = SPLIT_PATTERN.split(str(raw or ""))
+	text = " ".join(str(i or "") for i in raw) if isinstance(raw, (list, tuple)) else str(raw or "")
+
+	# Pull "Anna Smith <anna@example.com>" down to the address first. Splitting on
+	# whitespace without this would turn the display name into two entries and
+	# report them back as invalid addresses, which reads as a failure when the
+	# paste was in fact perfectly good.
+	text = ANGLE_PATTERN.sub(lambda m: f" {m.group(1)} ", text)
+
+	candidates = SPLIT_PATTERN.split(text)
 
 	valid, invalid, seen = [], [], set()
 
@@ -228,6 +236,7 @@ def send_invites(emails, batches: list[str]) -> dict:
 		"already_enrolled": [],
 		"invalid": invalid,
 		"email_failed": [],
+		"account_failed": [],
 	}
 
 	for email in valid:
@@ -240,13 +249,67 @@ def send_invites(emails, batches: list[str]) -> dict:
 			(result["enrolled"] if added else result["already_enrolled"]).append(email)
 			continue
 
+		# The invite row is written before the account so that the User.after_insert
+		# hook finds it and does the enrolment - one code path, whether the account
+		# is created here or by an admin in Desk later.
 		invite, _created = create_or_update_invite(email, batches)
-		result["invited"].append(email)
 
-		if not send_invite_email(invite):
-			result["email_failed"].append(email)
+		try:
+			create_account(email)
+			result["invited"].append(email)
+		except Exception:
+			frappe.log_error(
+				title="Student invite account creation failed",
+				message=f"email={email}\n\n{frappe.get_traceback()}",
+			)
+			result["account_failed"].append(email)
+			# Fall back to the link, which still works if signup is ever re-enabled
+			# or an admin creates the account by hand.
+			if not send_invite_email(invite):
+				result["email_failed"].append(email)
 
 	return result
+
+
+def create_account(email: str):
+	"""Create the invited student's account and let Frappe mail the setup link.
+
+	Self-registration is disabled on this site, so `sign_up` throws "Sign Up is
+	disabled" and any flow that waits for the invitee to register themselves can
+	never complete. The invite therefore provisions the account directly - which
+	is what Frappe's own member invite already does, minus the batch and course
+	enrolment that is the whole point here.
+
+	Two hooks fire off this insert and between them do the rest of the work:
+	`lms.lms.user.after_insert` grants the LMS Student role, and
+	`placid_drip.invites.accept_for_user` applies the pending invite written just
+	above. Nothing here needs to repeat either.
+
+	`send_welcome_email` is what gets the person a password-setup link; without it
+	the account exists but is unreachable, since they have no password and cannot
+	self-register one.
+	"""
+	user = frappe.new_doc("User")
+	user.email = email
+	user.first_name = _name_from_email(email)
+	user.user_type = "Website User"
+	user.enabled = 1
+	user.send_welcome_email = 1
+	user.insert(ignore_permissions=True)
+
+	return user
+
+
+def _name_from_email(email: str) -> str:
+	"""A placeholder first name, since User requires one and we only have an address.
+
+	The person can correct it on their profile. Guessing beyond this - splitting
+	on dots to invent a surname - gets names wrong more often than it gets them
+	right, and a wrong name is harder to notice than an obviously provisional one.
+	"""
+	local = email.split("@")[0]
+	cleaned = re.sub(r"[._\-+]+", " ", local).strip()
+	return cleaned.title() or email
 
 
 def accept_for_user(doc, method=None) -> None:
@@ -289,3 +352,22 @@ def accept_for_user(doc, method=None) -> None:
 
 def get_invite_url(key: str) -> str:
 	return f"{get_url()}/invite?key={key}"
+
+
+def resend_account_setup(user: str) -> bool:
+	"""Re-send the password-setup link for an account that exists but is unused.
+
+	This, not the invite link, is the actionable email once the account has been
+	provisioned: someone who has never set a password cannot log in, and with
+	self-registration disabled they cannot create one either. Returns whether it
+	was queued, so the UI can fall back to telling the facilitator to chase it.
+	"""
+	try:
+		frappe.get_doc("User", user).reset_password(send_email=True)
+		return True
+	except Exception:
+		frappe.log_error(
+			title="Student invite password email failed",
+			message=f"user={user}\n\n{frappe.get_traceback()}",
+		)
+		return False
