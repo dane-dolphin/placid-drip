@@ -431,13 +431,89 @@ def get_batches(filters=None, start=0, order_by="start_date"):
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_batch_details(batch):
-    return lms_utils.get_batch_details(batch)
+    """Upstream batch payload plus whether this caller may edit the batch.
+
+    Resolved here rather than in the frontend because the two things that make a
+    facilitator an owner of a batch - the `owner` column and the instructor child
+    table - are not both on the payload, and shipping `owner` to every guest
+    purely so the UI can compare it to a session user is more than the button
+    needs.
+    """
+    details = lms_utils.get_batch_details(batch)
+
+    if details:
+        details["can_edit"] = _can_edit_batch(batch, details)
+
+    return details
+
+
+def _can_edit_batch(batch, details) -> bool:
+    """Staff, or the facilitator who created or teaches this batch.
+
+    Deliberately not "any Batch Evaluator": the role is held site-wide, so
+    checking it alone would put an Edit button on every batch on the site.
+    """
+    user = frappe.session.user
+    if user == "Guest":
+        return False
+
+    if _is_admin_or_moderator(user):
+        return True
+
+    if "Batch Evaluator" not in frappe.get_roles(user):
+        return False
+
+    if frappe.db.get_value("LMS Batch", batch, "owner") == user:
+        return True
+
+    return any(
+        instructor.get("name") == user for instructor in (details.get("instructors") or [])
+    )
 
 
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_batch_courses(batch):
-    return lms_utils.get_batch_courses(batch)
+    """Upstream batch courses, with `enrollments` scoped to this batch.
+
+    `LMS Course.enrollments` is a site-wide counter maintained on the course, so
+    the Courses tab of a batch was reporting every learner who had ever taken the
+    course - across every other batch - under a heading a facilitator reads as
+    "how many of my students are in this". Recomputed here from the intersection
+    of the batch roster and the course's enrolments.
+    """
+    courses = lms_utils.get_batch_courses(batch)
+
+    return _scope_enrollments_to_batch(batch, courses)
+
+
+def _scope_enrollments_to_batch(batch, courses):
+    if not courses:
+        return courses
+
+    members = frappe.get_all("LMS Batch Enrollment", filters={"batch": batch}, pluck="member")
+
+    if not members:
+        for course in courses:
+            course["enrollments"] = 0
+        return courses
+
+    # One grouped query for every course in the batch rather than a count each.
+    rows = frappe.get_all(
+        "LMS Enrollment",
+        filters={
+            "course": ["in", [c["name"] for c in courses]],
+            "member": ["in", members],
+        },
+        fields=["course", "count(name) as enrollments"],
+        group_by="course",
+    )
+    counts = {row["course"]: row["enrollments"] for row in rows}
+
+    for course in courses:
+        course["enrollments"] = counts.get(course["name"], 0)
+
+    return courses
 
 
 @frappe.whitelist()
