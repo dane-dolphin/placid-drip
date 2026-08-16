@@ -1,14 +1,17 @@
 import frappe
 
-from placid_drip.facilitator import get_facilitated_batch_names
+from placid_drip.facilitator import get_facilitated_batch_names, is_staff
 
 
 def is_system_staff():
-	return (
-		frappe.session.user == "Administrator"
-		or frappe.has_role("System Manager")
-		or frappe.has_role("Moderator")
-	)
+	"""Delegates to `facilitator.is_staff` - same question, one answer.
+
+	This used to call `frappe.has_role`, which does not exist in Frappe v15; the
+	attribute lookup raised for every user except Administrator, who short-circuits
+	on the check before it. Nothing called `require_batch_access` until now, so the
+	crash sat here unnoticed rather than being caught by an existing caller.
+	"""
+	return is_staff(frappe.session.user)
 
 
 def require_batch_access(batch: str):
