@@ -19,7 +19,7 @@ override_whitelisted_methods = {
   # surface Organization, which upstream's hardcoded User field lists omit
   "lms.lms.api.get_profile_details": "placid_drip.overrides.lms_api.get_profile_details",
   "lms.lms.utils.get_batch_students": "placid_drip.overrides.lms_utils.get_batch_students",
-  # daily per-IP cap on top of frappe's hourly password_reset_limit
+  # per-IP hourly + daily limits in code, replacing System Settings password_reset_limit
   "frappe.core.doctype.user.user.reset_password": "placid_drip.overrides.user.reset_password",
 }
 
