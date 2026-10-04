@@ -56,6 +56,9 @@ body[data-path="login"] .placid-login-right .browse-courses-cta {
   width: min(420px, 92vw);
   max-width: 420px;
   margin-top: 2vh;
+  /* gap to the login card (shown below it via column-reverse); this used to come
+     from the nested page wrapper login.html rendered by mistake */
+  margin-bottom: 72px;
   position: relative;
   z-index: 10;
 }

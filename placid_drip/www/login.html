@@ -1,20 +1,15 @@
-{% extends "templates/web.html" %}
+{# Extends frappe's login page rather than {% include %}-ing it: that page is a
+   full document (it extends web.html itself), so including it rendered the whole
+   page twice, loaded login.js twice and sent every login/forgot-password submit
+   twice - two reset emails, only the second of which worked. #}
+{% extends "frappe/www/login.html" %}
 
 {% block head_include %}
   {{ super() }}
-  {{ include_style("login.bundle.css") }}
   <link rel="stylesheet" href="/assets/placid_drip/css/placid-login.css">
 {% endblock %}
 
 {% block page_content %}
-
-  {# If already logged-in, don't render login page #}
-  {% if frappe.session.user != "Guest" %}
-    <script>
-      window.location.replace("/");
-    </script>
-  {% endif %}
-
   <div class="placid-login-shell">
     <div class="placid-login-left">
       <img src="/assets/placid_drip/images/placid-logo-hhh.png" alt="Placid Academy" />
@@ -22,7 +17,7 @@
     </div>
 
     <div class="placid-login-right">
-      {% include "frappe/www/login.html" %}
+      {{ super() }}
       <a class="browse-courses-cta" href="/courses">Browse Courses</a>
     </div>
   </div>
@@ -32,5 +27,3 @@
   {{ super() }}
   <script src="/assets/placid_drip/js/placid-login.js"></script>
 {% endblock %}
-
-{% block sidebar %}{% endblock %}
