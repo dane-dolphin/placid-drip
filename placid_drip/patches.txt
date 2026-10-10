@@ -8,3 +8,4 @@ placid_drip.patches.adopt_code_managed_permissions
 placid_drip.patches.backfill_batch_course_enrollments
 placid_drip.patches.shorten_login_lockout
 placid_drip.patches.add_organization_and_level_fields
+placid_drip.patches.set_session_expiry_21_days

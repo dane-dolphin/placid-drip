@@ -354,3 +354,31 @@ body[data-path="login"] .cursor-ring.cursor-click::after {
 body[data-path="login"] .cursor-ring.cursor-click {
   transform: translate(-50%, -50%) scale(0.9);
 }
+
+/* ===== Login with email code (placid-login-code.js) ===== */
+body[data-path="login"] .placid-code-step .placid-code-sent {
+  color: #374151;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+
+body[data-path="login"] .placid-code-step .placid-code-input {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-align: center;
+  height: 52px;
+}
+
+body[data-path="login"] .placid-code-step .placid-code-hint {
+  margin: 10px 0 4px;
+}
+
+body[data-path="login"] .placid-code-step .placid-code-links a {
+  color: #1e5449;
+  font-weight: 600;
+}
+
+body[data-path="login"] .placid-code-status {
+  margin: 12px 0 0;
+}
