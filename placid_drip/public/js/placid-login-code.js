@@ -57,6 +57,8 @@
 
   let step = "email";
   let busy = false;
+  let loggedIn = false; // stays set while the redirect loads, so nothing re-enables the form
+  let verifyQueued = false; // a full code typed while another request was in flight
 
   function setStatus(message, isError) {
     status.textContent = message || "";
@@ -135,12 +137,17 @@
       codeInput.select();
       return;
     }
+    loggedIn = true;
     setStatus(__("Logged in. Taking you to your courses…"), false);
     window.location.href = data.message || "/";
   }
 
   async function run(action) {
-    if (busy) return;
+    if (loggedIn) return;
+    if (busy) {
+      if (action === verifyCode) verifyQueued = true;
+      return;
+    }
     busy = true;
     submitButton.disabled = true;
     try {
@@ -149,7 +156,11 @@
       setStatus(__("Something went wrong. Please check your connection and try again."), true);
     } finally {
       busy = false;
-      submitButton.disabled = false;
+      if (!loggedIn) submitButton.disabled = false;
+      if (verifyQueued && !loggedIn) {
+        verifyQueued = false;
+        if (step === "code" && codeInput.value.length === 6) run(verifyCode);
+      }
     }
   }
 

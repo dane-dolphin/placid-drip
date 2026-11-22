@@ -25,10 +25,14 @@ def check_ip_rate_limits(name: str):
 
 	for limit, seconds in PER_IP_LIMITS:
 		cache_key = frappe.cache.make_key(f"rl:{name}:{seconds}:{ip}")
-		if not frappe.cache.get(cache_key):
-			frappe.cache.setex(cache_key, seconds, 0)
+		# INCR first and set the expiry only when this call created the key:
+		# get/setex/incr can recreate an expired key with no TTL, and that
+		# counter would then never reset.
+		count = frappe.cache.incrby(cache_key, 1)
+		if count == 1:
+			frappe.cache.expire(cache_key, seconds)
 
-		if frappe.cache.incrby(cache_key, 1) > limit:
+		if count > limit:
 			frappe.throw(
 				_("You hit the rate limit because of too many requests. Please try after sometime."),
 				frappe.RateLimitExceededError,
