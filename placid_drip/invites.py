@@ -1,19 +1,22 @@
-"""Bulk student invites, and the enrolment they turn into.
+"""Student invites, and the enrolment they turn into.
 
-Two things are missing from what the site can do today. Frappe's own member
-invite creates an account but knows nothing about batches, so an invited student
-lands with no batch and no courses. And only administrators can send it, which
-leaves a facilitator unable to populate the batch they run.
+An invite is a standing offer of a place in one or more batches, keyed on an
+email address and carrying a secret key that makes its link usable.
 
-This closes both. An invite is a standing offer keyed on an email address; the
-enrolment is applied by `accept_for_user`, driven off `User.after_insert`. Keying
-on email rather than on the invite token is deliberate - it means the enrolment
-lands however the account is eventually created, including an admin adding the
-person by hand in Desk, which a token-redemption flow would miss entirely.
+Self-registration is disabled on this site, so the invite link is the one way a
+new student can get an account: `/invite?key=...` shows a registration form and
+`register` creates the account, because holding a valid key is authorisation
+enough. The student then chooses which of the invited batches to join, in
+`accept`. Someone who already has an account never sees any of that -
+`send_invites` enrols them on the spot, since there is nothing to wait for.
+
+The `User.after_insert` hook still applies pending invites to accounts created
+any other way - an admin adding the person in Desk, a social login. It matches
+on email rather than on the key, so that path needs nothing from the invitee.
 
 Creating the `LMS Batch Enrollment` row is all that is needed to enrol someone in
 the batch's courses too: `LMSBatchEnrollment.after_insert` already calls
-`enroll_member_in_batch_courses`. That is exactly the step the stock invite skips.
+`enroll_member_in_batch_courses`.
 """
 
 import re
@@ -23,6 +26,7 @@ from frappe import _
 from frappe.utils import get_url, now_datetime, validate_email_address
 
 from placid_drip.facilitator import get_facilitated_batch_names, is_staff
+from placid_drip.student_accounts import create_student_account, user_for_email  # noqa: F401 - re-exported
 
 #: Anything a human might paste between addresses: commas, semicolons, newlines,
 #: tabs or plain spaces. Pasting a column out of a spreadsheet has to just work.
@@ -32,7 +36,6 @@ SPLIT_PATTERN = re.compile(r"[,;\s]+")
 #: The display name is consumed along with the brackets, not just stripped off the
 #: address, so it never reaches the splitter and gets reported as a bad address.
 ANGLE_PATTERN = re.compile(r'(?:"[^"]*"\s*|[^,;<>]*)<([^<>@\s]+@[^<>@\s]+)>')
-
 
 def parse_emails(raw) -> tuple[list[str], list[str]]:
 	"""Split a pasted blob into (valid, invalid) address lists.
@@ -100,10 +103,10 @@ def assert_can_invite(batches: list[str], user: str) -> None:
 def enroll_in_batches(member: str, batches: list[str]) -> list[str]:
 	"""Enrol `member` into each batch. Returns the batches newly enrolled into.
 
-	`ignore_permissions` because the caller has already been authorised by
-	`assert_can_invite`, which is a stricter check than the doctype-level one: it
-	is bounded to the facilitator's own batches, whereas a create right on
-	LMS Batch Enrollment would apply to every batch on the site.
+	`ignore_permissions` because every caller has already been authorised more
+	strictly than the doctype-level check would manage: the facilitator by
+	`assert_can_invite`, which is bounded to their own batches, and the student by
+	holding the invite's key for their own address.
 	"""
 	added = []
 
@@ -144,7 +147,8 @@ def create_or_update_invite(email: str, batches: list[str]):
 
 	Re-inviting somebody who is already pending adds the new batches to the
 	existing invite instead of creating a second one, so a second invite cannot
-	quietly supersede the batches named by the first.
+	quietly supersede the batches named by the first - and the link already in
+	their inbox keeps working, now for both batches.
 	"""
 	invite = _existing_pending_invite(email)
 
@@ -173,17 +177,10 @@ def send_invite_email(invite) -> bool:
 	email ever arriving.
 	"""
 	try:
-		batch_titles = [
-			frappe.db.get_value("LMS Batch", row.batch, "title") or row.batch
-			for row in invite.batches
-		]
-
 		frappe.sendmail(
 			recipients=[invite.email],
-			subject=_("You have been invited to join {0}").format(
-				frappe.db.get_single_value("Website Settings", "app_name") or "Placid Academy"
-			),
-			message=_invite_email_body(invite, batch_titles),
+			subject=_("You have been invited to join {0}").format(_site_name()),
+			message=_invite_email_body(invite, batch_titles(invite)),
 			reference_doctype=invite.doctype,
 			reference_name=invite.name,
 			retry=3,
@@ -197,19 +194,27 @@ def send_invite_email(invite) -> bool:
 		return False
 
 
-def _invite_email_body(invite, batch_titles: list[str]) -> str:
-	items = "".join(f"<li>{frappe.utils.escape_html(t)}</li>" for t in batch_titles)
+def _site_name() -> str:
+	return frappe.db.get_single_value("Website Settings", "app_name") or "Placid Academy"
+
+
+def _invite_email_body(invite, titles: list[str]) -> str:
+	items = "".join(f"<li>{frappe.utils.escape_html(t)}</li>" for t in titles)
 
 	return f"""
-		<p>{_("You have been invited to join the following on Placid Academy:")}</p>
+		<p>{_("You have been invited to join the following on {0}:").format(frappe.utils.escape_html(_site_name()))}</p>
 		<ul>{items}</ul>
 		<p>
 			<a href="{invite.invite_url}">{_("Accept your invitation")}</a>
 		</p>
 		<p style="color:#666;font-size:13px">
-			{_("Please sign up using this address: {0}").format(invite.email)}
+			{_("This link is for {0}. It lets you create your account and join the batch.").format(frappe.utils.escape_html(invite.email))}
 		</p>
 	"""
+
+
+def batch_titles(invite) -> list[str]:
+	return [frappe.db.get_value("LMS Batch", row.batch, "title") or row.batch for row in invite.batches]
 
 
 def send_invites(emails, batches: list[str]) -> dict:
@@ -236,88 +241,121 @@ def send_invites(emails, batches: list[str]) -> dict:
 		"already_enrolled": [],
 		"invalid": invalid,
 		"email_failed": [],
-		"account_failed": [],
 	}
 
 	for email in valid:
-		existing_user = frappe.db.exists("User", {"email": email})
+		existing_user = user_for_email(email)
 
 		if existing_user:
 			# They already have an account, so there is nothing to wait for - enrol
-			# them now rather than sending a signup link they do not need.
+			# them now rather than sending a registration link they do not need.
 			added = enroll_in_batches(existing_user, batches)
 			(result["enrolled"] if added else result["already_enrolled"]).append(email)
 			continue
 
-		# The invite row is written before the account so that the User.after_insert
-		# hook finds it and does the enrolment - one code path, whether the account
-		# is created here or by an admin in Desk later.
 		invite, _created = create_or_update_invite(email, batches)
+		result["invited"].append(email)
 
-		try:
-			create_account(email)
-			result["invited"].append(email)
-		except Exception:
-			frappe.log_error(
-				title="Student invite account creation failed",
-				message=f"email={email}\n\n{frappe.get_traceback()}",
-			)
-			result["account_failed"].append(email)
-			# Fall back to the link, which still works if signup is ever re-enabled
-			# or an admin creates the account by hand.
-			if not send_invite_email(invite):
-				result["email_failed"].append(email)
+		if not send_invite_email(invite):
+			result["email_failed"].append(email)
 
 	return result
 
 
-def create_account(email: str):
-	"""Create the invited student's account and let Frappe mail the setup link.
+def is_invitee(invite, user: str) -> bool:
+	"""Is the signed-in `user` the person this invite was addressed to?
 
-	Self-registration is disabled on this site, so `sign_up` throws "Sign Up is
-	disabled" and any flow that waits for the invitee to register themselves can
-	never complete. The invite therefore provisions the account directly - which
-	is what Frappe's own member invite already does, minus the batch and course
-	enrolment that is the whole point here.
-
-	Two hooks fire off this insert and between them do the rest of the work:
-	`lms.lms.user.after_insert` grants the LMS Student role, and
-	`placid_drip.invites.accept_for_user` applies the pending invite written just
-	above. Nothing here needs to repeat either.
-
-	`send_welcome_email` is what gets the person a password-setup link; without it
-	the account exists but is unreachable, since they have no password and cannot
-	self-register one.
+	Compared on the User's email rather than its id: they usually match, but an
+	address edited after the account was created leaves the id on the old one.
 	"""
-	user = frappe.new_doc("User")
-	user.email = email
-	user.first_name = _name_from_email(email)
-	user.user_type = "Website User"
-	user.enabled = 1
-	user.send_welcome_email = 1
-	user.insert(ignore_permissions=True)
+	if not user or user == "Guest":
+		return False
 
-	return user
+	user_email = (frappe.db.get_value("User", user, "email") or user).strip().lower()
+	return user_email == (invite.email or "").strip().lower()
 
 
-def _name_from_email(email: str) -> str:
-	"""A placeholder first name, since User requires one and we only have an address.
+def get_invite_by_key(key: str):
+	"""The invite behind a link, whatever its status. None for an unknown key."""
+	key = (key or "").strip()
+	if not key:
+		return None
 
-	The person can correct it on their profile. Guessing beyond this - splitting
-	on dots to invent a surname - gets names wrong more often than it gets them
-	right, and a wrong name is harder to notice than an obviously provisional one.
+	name = frappe.db.exists("Student Invite", {"invite_key": key})
+	return frappe.get_doc("Student Invite", name) if name else None
+
+
+def register(key: str, first_name: str, last_name: str, password: str):
+	"""Create the account an invite link was sent for, and return the User.
+
+	Self-registration is disabled on this site (`Website Settings.disable_signup`),
+	so this does not go through `sign_up`; the invite key is the authorisation.
+	The account is bound to the invited address - the form shows it read-only - so
+	a link forwarded to somebody else cannot register a different person.
+
+	The invite is deliberately *not* applied here. The `User.after_insert` hook
+	would normally do that, and is told to stand down with `skip_pending_invites`,
+	so the student gets to pick which of the invited batches to join on the next
+	screen rather than being enrolled in all of them behind their back.
 	"""
-	local = email.split("@")[0]
-	cleaned = re.sub(r"[._\-+]+", " ", local).strip()
-	return cleaned.title() or email
+	invite = get_invite_by_key(key)
+	if not invite or invite.status != "Pending":
+		frappe.throw(
+			_("This invite link is not valid, or has already been used."),
+			frappe.DoesNotExistError,
+		)
+
+	if user_for_email(invite.email):
+		frappe.throw(_("An account already exists for {0}. Please log in to accept the invite.").format(invite.email))
+
+	return create_student_account(
+		invite.email, first_name, last_name, password, skip_pending_invites=True
+	)
+
+
+def accept(invite, user: str, batches: list[str] | None = None) -> list[str]:
+	"""Enrol `user` in the chosen batches and close the invite. Returns them.
+
+	`batches` is the student's selection; `None` means every batch on the invite,
+	which is what the `User.after_insert` hook wants. Batches that were offered but
+	not chosen are removed from the invite rather than left behind, so the record
+	- and the facilitator's Students page, which lists invite batches - reflects
+	what the person actually joined.
+	"""
+	offered = invite.batch_names()
+
+	if batches is None:
+		chosen = offered
+	else:
+		chosen = [b for b in dict.fromkeys(batches) if b]
+		unknown = [b for b in chosen if b not in offered]
+		if unknown:
+			frappe.throw(_("You were not invited to: {0}").format(", ".join(unknown)))
+		if not chosen:
+			frappe.throw(_("Choose at least one batch to join."))
+
+	enroll_in_batches(user, chosen)
+
+	invite.batches = [row for row in invite.batches if row.batch in chosen]
+	invite.status = "Accepted"
+	invite.accepted_user = user
+	invite.accepted_on = now_datetime()
+	invite.save(ignore_permissions=True)
+
+	return chosen
 
 
 def accept_for_user(doc, method=None) -> None:
 	"""`User.after_insert` hook: apply any pending invite for this address.
 
 	Runs for every new User on the site, so it exits immediately when there is no
-	pending invite - which is the overwhelmingly common case.
+	pending invite - which is the overwhelmingly common case. `register` sets
+	`skip_pending_invites` so the student chooses their batches on the invite page
+	instead; every other way of creating the account gets all of them.
 	"""
+	if doc.flags.skip_pending_invites:
+		return
+
 	email = (doc.email or doc.name or "").strip().lower()
 	if not email:
 		return
@@ -336,18 +374,9 @@ def accept_for_user(doc, method=None) -> None:
 		filters={"email": email, "status": "Pending"},
 		pluck="name",
 	)
-	if not pending:
-		return
 
 	for name in pending:
-		invite = frappe.get_doc("Student Invite", name)
-
-		enroll_in_batches(doc.name, invite.batch_names())
-
-		invite.status = "Accepted"
-		invite.accepted_user = doc.name
-		invite.accepted_on = now_datetime()
-		invite.save(ignore_permissions=True)
+		accept(frappe.get_doc("Student Invite", name), doc.name)
 
 
 def get_invite_url(key: str) -> str:
@@ -355,12 +384,11 @@ def get_invite_url(key: str) -> str:
 
 
 def resend_account_setup(user: str) -> bool:
-	"""Re-send the password-setup link for an account that exists but is unused.
+	"""Re-send a password-setup link for an account that exists but was never used.
 
-	This, not the invite link, is the actionable email once the account has been
-	provisioned: someone who has never set a password cannot log in, and with
-	self-registration disabled they cannot create one either. Returns whether it
-	was queued, so the UI can fall back to telling the facilitator to chase it.
+	Accounts provisioned by the earlier invite flow got a welcome email and nothing
+	else, so someone who lost it has no way in. Returns whether it was queued, so
+	the UI can fall back to telling the facilitator to chase it.
 	"""
 	try:
 		frappe.get_doc("User", user).reset_password(send_email=True)

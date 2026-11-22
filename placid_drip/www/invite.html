@@ -3,41 +3,437 @@
 {% block title %}{{ _("Your invitation") }}{% endblock %}
 
 {% block page_content %}
-<div class="invite-page">
-	{% if accepted %}
-		<h1>{{ _("You're in") }}</h1>
-		<p>{{ _("You have been enrolled in:") }}</p>
-		<ul>
-			{% for title in batches %}<li>{{ title }}</li>{% endfor %}
-		</ul>
-		<p><a class="btn btn-primary" href="/lms/batches">{{ _("Go to my batches") }}</a></p>
+<section class="invite-page" data-mode="{{ mode }}">
+	<div class="page-card-head">
+		<h4>
+			{%- if mode == "register" -%}{{ _("Create your account") }}
+			{%- elif mode == "accept" -%}{{ _("Join your batch") }}
+			{%- elif mode == "accepted" -%}{{ _("You're already in") }}
+			{%- elif mode == "login" -%}{{ _("Log in to continue") }}
+			{%- elif mode == "mismatch" -%}{{ _("Wrong account") }}
+			{%- else -%}{{ _("Invitation unavailable") }}
+			{%- endif -%}
+		</h4>
+	</div>
 
-	{% elif invite_valid %}
-		<h1>{{ _("You have been invited") }}</h1>
-		<p>{{ _("You have been invited to join:") }}</p>
-		<ul>
-			{% for title in batches %}<li>{{ title }}</li>{% endfor %}
-		</ul>
-
-		{% if message %}
-			<p class="text-muted">{{ message }}</p>
-		{% else %}
-			<p>
-				{{ _("Sign up or log in with {0} to accept.").format(email) }}
+	<div class="page-card">
+		{% if mode == "register" %}
+			<p class="invite-intro">
+				{{ _("You have been invited to join:") }}
 			</p>
-			<p><a class="btn btn-primary" href="{{ login_url }}">{{ _("Continue") }}</a></p>
+			<ul class="invite-batches">
+				{% for b in batches %}<li>{{ b.title }}</li>{% endfor %}
+			</ul>
+
+			<form id="invite-register" novalidate>
+				<div class="form-group">
+					<label for="invite_email" class="small text-muted">{{ _("Email (your username)") }}</label>
+					<input id="invite_email" type="email" class="form-control" value="{{ email }}" readonly>
+				</div>
+				<div class="invite-name-row">
+					<div class="form-group">
+						<label for="invite_first_name" class="small text-muted">{{ _("First name") }}</label>
+						<input id="invite_first_name" type="text" class="form-control" autocomplete="given-name" maxlength="140" required autofocus>
+					</div>
+					<div class="form-group">
+						<label for="invite_last_name" class="small text-muted">{{ _("Last name") }}</label>
+						<input id="invite_last_name" type="text" class="form-control" autocomplete="family-name" maxlength="140">
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="invite_password" class="small text-muted">{{ _("Password") }}</label>
+					<input id="invite_password" type="password" class="form-control" autocomplete="new-password" required>
+					<p class="invite-strength small text-muted mt-1 mb-0" hidden></p>
+				</div>
+				<div class="form-group">
+					<label for="invite_confirm" class="small text-muted">{{ _("Confirm password") }}</label>
+					<input id="invite_confirm" type="password" class="form-control" autocomplete="new-password" required>
+				</div>
+
+				<p class="invite-status small" role="status" hidden></p>
+
+				<button type="submit" class="btn btn-primary btn-block btn-invite-submit">
+					{{ _("Create account and continue") }}
+				</button>
+			</form>
+
+		{% elif mode == "accept" %}
+			<form id="invite-accept">
+				<p class="invite-intro">
+					{%- if first_name -%}
+						{{ _("Hi {0}, you have been invited to join:").format(first_name) }}
+					{%- else -%}
+						{{ _("You have been invited to join:") }}
+					{%- endif -%}
+				</p>
+
+				{% if batches|length > 1 %}
+					<p class="small text-muted">{{ _("Untick any batch you do not want to join.") }}</p>
+					<div class="invite-choices">
+						{% for b in batches %}
+							<label class="invite-choice">
+								<input type="checkbox" name="batch" value="{{ b.name }}" checked>
+								<span>{{ b.title }}</span>
+							</label>
+						{% endfor %}
+					</div>
+				{% else %}
+					<ul class="invite-batches">
+						{% for b in batches %}<li>{{ b.title }}</li>{% endfor %}
+					</ul>
+				{% endif %}
+
+				<p class="invite-status small" role="status" hidden></p>
+
+				<button type="submit" class="btn btn-primary btn-block btn-invite-submit">
+					{%- if batches|length > 1 -%}{{ _("Join selected batches") }}{%- else -%}{{ _("Join batch") }}{%- endif -%}
+				</button>
+			</form>
+
+			<div id="invite-done" hidden>
+				<p class="invite-intro">{{ _("You're in. You have joined:") }}</p>
+				<ul class="invite-batches invite-joined"></ul>
+				<a class="btn btn-primary btn-block" href="/lms/batches">{{ _("Go to my batches") }}</a>
+			</div>
+
+		{% elif mode == "accepted" %}
+			<p class="invite-intro">{{ _("This invitation has already been accepted. You are enrolled in:") }}</p>
+			<ul class="invite-batches">
+				{% for b in batches %}<li>{{ b.title }}</li>{% endfor %}
+			</ul>
+			<a class="btn btn-primary btn-block" href="/lms/batches">{{ _("Go to my batches") }}</a>
+
+		{% elif mode == "login" %}
+			<p class="invite-intro">{{ message }}</p>
+			<ul class="invite-batches">
+				{% for b in batches %}<li>{{ b.title }}</li>{% endfor %}
+			</ul>
+			<a class="btn btn-primary btn-block" href="{{ login_url }}">{{ _("Log in as {0}").format(email) }}</a>
+
+		{% elif mode == "mismatch" %}
+			<p class="invite-intro">
+				{{ _("This invite was sent to {0}, but you are signed in as {1}.").format(email, user_email) }}
+			</p>
+			<p class="small text-muted">
+				{{ _("Sign out, then open the link again to continue with the invited address.") }}
+			</p>
+			<p class="invite-status small" role="status" hidden></p>
+			<button type="button" class="btn btn-primary btn-block" id="invite-signout">{{ _("Sign out") }}</button>
+
+		{% else %}
+			<p class="invite-intro">{{ message }}</p>
+			<p class="small text-muted mb-0">
+				{{ _("If you were expecting an invitation, ask your facilitator to send it again.") }}
+			</p>
 		{% endif %}
+	</div>
+</section>
+{% endblock %}
 
-	{% else %}
-		<h1>{{ _("Invitation unavailable") }}</h1>
-		<p>{{ message }}</p>
-	{% endif %}
-</div>
-
+{% block style %}
 <style>
-	.invite-page { max-width: 34rem; margin: 4rem auto; }
-	.invite-page h1 { margin-bottom: 1rem; }
-	.invite-page ul { margin: 1rem 0 1.5rem 1.25rem; }
-	.invite-page li { margin-bottom: 0.25rem; }
+	body {
+		background-color: var(--bg-color);
+	}
+
+	.invite-page .page-card-head {
+		padding: max(5vh, 30px) 0 14px 0;
+		margin: 0 auto;
+		text-align: center;
+	}
+
+	.invite-page .page-card-head h4 {
+		margin-top: 1rem;
+		font-size: var(--text-xl);
+		font-weight: var(--weight-semibold);
+		letter-spacing: 0.01em;
+		color: var(--text-color);
+	}
+
+	.invite-page .invite-intro {
+		color: var(--text-color);
+		margin-bottom: 0.75rem;
+	}
+
+	.invite-page .invite-batches {
+		margin: 0 0 1.25rem 1.1rem;
+		padding: 0;
+		color: var(--text-color);
+	}
+
+	.invite-page .invite-batches li {
+		margin-bottom: 0.25rem;
+	}
+
+	.invite-page .invite-name-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+	}
+
+	@media (max-width: 420px) {
+		.invite-page .invite-name-row {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.invite-page .form-group {
+		margin-bottom: 1rem;
+	}
+
+	.invite-page label.small {
+		display: block;
+		margin-bottom: 0.25rem;
+	}
+
+	.invite-page input[readonly] {
+		background-color: var(--control-bg);
+		color: var(--text-muted);
+	}
+
+	.invite-page .invite-choices {
+		border: 1px solid var(--border-color);
+		border-radius: var(--border-radius);
+		margin-bottom: 1.25rem;
+		overflow: hidden;
+	}
+
+	.invite-page .invite-choice {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin: 0;
+		padding: 0.6rem 0.8rem;
+		border-top: 1px solid var(--border-color);
+		cursor: pointer;
+		color: var(--text-color);
+		font-weight: var(--weight-regular);
+	}
+
+	.invite-page .invite-choice:first-child {
+		border-top: 0;
+	}
+
+	.invite-page .invite-choice:hover {
+		background-color: var(--control-bg);
+	}
+
+	.invite-page .invite-choice input {
+		margin: 0;
+	}
+
+	.invite-page .invite-status {
+		margin: 0 0 0.75rem 0;
+	}
+
+	.invite-page .invite-strength.is-ok {
+		color: var(--green-600, #16794c);
+	}
+
+	.invite-page .invite-strength.is-weak {
+		color: var(--red-600, #b52a2a);
+	}
+
+	{% include "templates/styles/card_style.css" %}
 </style>
+{% endblock %}
+
+{% block script %}
+{{ super() }}
+<script>
+frappe.ready(function () {
+	const page = document.querySelector(".invite-page");
+	if (!page) return;
+
+	const key = frappe.utils.get_url_arg("key") || "";
+	const mode = page.dataset.mode;
+
+	// Plain fetch rather than frappe.call: frappe.call pops its own dialogs for
+	// 4xx responses, and every outcome here is explained inline next to the form.
+	async function post(method, params) {
+		const response = await fetch(`/api/method/${method}`, {
+			method: "POST",
+			headers: { Accept: "application/json", "X-Frappe-CSRF-Token": frappe.csrf_token },
+			body: new URLSearchParams(params),
+		});
+		const data = await response.json().catch(() => ({}));
+		return { ok: response.ok, status: response.status, data };
+	}
+
+	function serverMessage(data) {
+		try {
+			const messages = JSON.parse(data._server_messages || "[]");
+			if (messages.length) return JSON.parse(messages[0]).message;
+		} catch (e) {
+			// fall through to the caller's default
+		}
+		return data.message && typeof data.message === "string" ? data.message : null;
+	}
+
+	function fallbackError(status) {
+		if (status === 429) return __("Too many requests from your network. Please try again later.");
+		return __("Something went wrong. Please check your connection and try again.");
+	}
+
+	function statusLine(form) {
+		return form.querySelector(".invite-status");
+	}
+
+	function setStatus(form, message, isError) {
+		const el = statusLine(form);
+		if (!el) return;
+		el.textContent = message || "";
+		el.hidden = !message;
+		el.classList.toggle("text-danger", !!isError);
+		el.classList.toggle("text-success", !isError);
+	}
+
+	function setBusy(form, busy) {
+		const button = form.querySelector(".btn-invite-submit, .btn");
+		if (button) button.disabled = busy;
+	}
+
+	// ----- Register ---------------------------------------------------------
+	const registerForm = document.getElementById("invite-register");
+	if (registerForm) {
+		const first = registerForm.querySelector("#invite_first_name");
+		const last = registerForm.querySelector("#invite_last_name");
+		const password = registerForm.querySelector("#invite_password");
+		const confirm = registerForm.querySelector("#invite_confirm");
+		const strength = registerForm.querySelector(".invite-strength");
+
+		let strengthTimer = null;
+		password.addEventListener("input", () => {
+			clearTimeout(strengthTimer);
+			if (!password.value) {
+				strength.hidden = true;
+				return;
+			}
+			strengthTimer = setTimeout(checkStrength, 300);
+		});
+
+		// Same policy the server applies in User.validate, shown as you type so a
+		// rejected password is not the first thing you learn after submitting.
+		async function checkStrength() {
+			const { ok, data } = await post("frappe.core.doctype.user.user.test_password_strength", {
+				new_password: password.value,
+				user_data: JSON.stringify([first.value, "", last.value, registerForm.querySelector("#invite_email").value, ""]),
+			});
+			const feedback = ok && data.message && data.message.feedback;
+			if (!feedback) {
+				strength.hidden = true;
+				return;
+			}
+			const passed = feedback.password_policy_validation_passed;
+			const hints = [feedback.warning].concat(feedback.suggestions || []).filter(Boolean);
+			strength.textContent = passed
+				? __("Good password.")
+				: hints.join(" ") || __("Please choose a stronger password.");
+			strength.classList.toggle("is-ok", !!passed);
+			strength.classList.toggle("is-weak", !passed);
+			strength.hidden = false;
+		}
+
+		let busy = false;
+		registerForm.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			if (busy) return;
+
+			if (!first.value.trim()) {
+				setStatus(registerForm, __("Please enter your first name."), true);
+				first.focus();
+				return;
+			}
+			if (!password.value) {
+				setStatus(registerForm, __("Please choose a password."), true);
+				password.focus();
+				return;
+			}
+			if (password.value !== confirm.value) {
+				setStatus(registerForm, __("Passwords do not match."), true);
+				confirm.focus();
+				return;
+			}
+
+			busy = true;
+			setBusy(registerForm, true);
+			setStatus(registerForm, "", false);
+
+			const { ok, status, data } = await post("placid_drip.api.invite_landing.register", {
+				key,
+				first_name: first.value.trim(),
+				last_name: last.value.trim(),
+				password: password.value,
+			});
+
+			if (ok && data.message && data.message.redirect_to) {
+				setStatus(registerForm, __("Account created. Taking you to your batch..."), false);
+				window.location.replace(data.message.redirect_to);
+				return;
+			}
+
+			setStatus(registerForm, serverMessage(data) || fallbackError(status), true);
+			busy = false;
+			setBusy(registerForm, false);
+		});
+	}
+
+	// ----- Accept -----------------------------------------------------------
+	const acceptForm = document.getElementById("invite-accept");
+	if (acceptForm) {
+		const done = document.getElementById("invite-done");
+		let busy = false;
+
+		acceptForm.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			if (busy) return;
+
+			const boxes = Array.from(acceptForm.querySelectorAll("input[name=batch]"));
+			const params = { key };
+			if (boxes.length) {
+				const chosen = boxes.filter((b) => b.checked).map((b) => b.value);
+				if (!chosen.length) {
+					setStatus(acceptForm, __("Choose at least one batch to join."), true);
+					return;
+				}
+				params.batches = JSON.stringify(chosen);
+			}
+
+			busy = true;
+			setBusy(acceptForm, true);
+			setStatus(acceptForm, "", false);
+
+			const { ok, status, data } = await post("placid_drip.api.invite_landing.accept", params);
+
+			if (ok && data.message) {
+				const list = done.querySelector(".invite-joined");
+				list.textContent = "";
+				(data.message.batches || []).forEach((title) => {
+					const li = document.createElement("li");
+					li.textContent = title;
+					list.appendChild(li);
+				});
+				acceptForm.hidden = true;
+				done.hidden = false;
+				return;
+			}
+
+			setStatus(acceptForm, serverMessage(data) || fallbackError(status), true);
+			busy = false;
+			setBusy(acceptForm, false);
+		});
+	}
+
+	// ----- Wrong account ----------------------------------------------------
+	const signout = document.getElementById("invite-signout");
+	if (signout) {
+		signout.addEventListener("click", () => {
+			signout.disabled = true;
+			fetch("/api/method/logout", { credentials: "include" })
+				.then(() => window.location.reload())
+				.catch(() => window.location.reload());
+		});
+	}
+});
+</script>
 {% endblock %}

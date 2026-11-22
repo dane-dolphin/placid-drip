@@ -44,6 +44,13 @@ doc_events = {
 }
 
 
+# `/join/<token>` is a batch's join link - see placid_drip.batch_links. Served by
+# www/join.html with the token in form_dict, so the same page also answers the
+# query-string form `/join?token=...`.
+website_route_rules = [
+    {"from_route": "/join/<token>", "to_route": "join"},
+]
+
 after_install = "placid_drip.website_bootstrap.set_home_to_lms"
 after_migrate = "placid_drip.website_bootstrap.set_home_to_lms"
 

@@ -1,14 +1,17 @@
 """Landing page for an invite link.
 
-Handles the two ways someone arrives here. Already logged in - which happens
-whenever an existing member is re-invited, or the person signs up first and
-clicks the link afterwards - and the invite is applied on the spot. Not logged
-in, and the page names what they have been invited to and sends them to log in
-or sign up; the enrolment then lands via `User.after_insert` regardless of which
-route they take, so nothing depends on them returning to this URL.
+Works out which of five screens the visitor needs and leaves the rendering to
+the template. A guest with no account gets the registration form; a guest who
+already has one is sent to log in and come back; a signed-in invitee picks the
+batches to join; a signed-in stranger is told whose link this is; and anything
+unknown or cancelled gets a dead-end message that reveals nothing about which
+keys exist. The actual writes happen in `placid_drip.api.invite_landing`.
 """
 
+from urllib.parse import quote
+
 import frappe
+import frappe.sessions
 from frappe import _
 
 from placid_drip import invites
@@ -19,67 +22,55 @@ no_cache = 1
 def get_context(context):
 	context.no_cache = 1
 	context.show_sidebar = False
+	context.no_breadcrumbs = True
 
 	key = (frappe.form_dict.get("key") or "").strip()
-	context.invite_valid = False
-	context.accepted = False
+	context.key = key
+	context.mode = "unavailable"
 	context.batches = []
+	context.message = None
 
-	if not key:
-		context.message = _("This invite link is missing its key.")
+	invite = invites.get_invite_by_key(key) if key else None
+
+	if not invite or invite.status == "Cancelled":
+		context.message = (
+			_("This invite link is not valid, or has been cancelled.")
+			if key
+			else _("This invite link is missing its key.")
+		)
 		return context
 
-	invite = _get_invite(key)
-	if not invite:
-		# Same message for "no such key" and "already used" - distinguishing them
-		# tells an unauthenticated visitor which keys exist.
-		context.message = _("This invite link is not valid, or has already been used.")
-		return context
-
-	context.invite_valid = True
 	context.email = invite.email
-	context.batches = _batch_titles(invite)
-	context.login_url = f"/login?redirect-to=/invite?key={key}"
-
-	if frappe.session.user != "Guest":
-		_accept_now(invite, context)
-
-	return context
-
-
-def _get_invite(key: str):
-	name = frappe.db.exists("Student Invite", {"invite_key": key, "status": "Pending"})
-	return frappe.get_doc("Student Invite", name) if name else None
-
-
-def _batch_titles(invite) -> list[str]:
-	return [
-		frappe.db.get_value("LMS Batch", row.batch, "title") or row.batch for row in invite.batches
+	context.batches = [
+		{"name": row.batch, "title": title}
+		for row, title in zip(invite.batches, invites.batch_titles(invite))
 	]
+	context.login_url = "/login?redirect-to=" + quote(f"/invite?key={key}", safe="")
 
-
-def _accept_now(invite, context):
-	"""Apply the invite to the signed-in user.
-
-	Only when the addresses match. A logged-in member opening somebody else's
-	invite link must not be enrolled in their place, and must not consume the
-	invite either - so the invite is left Pending for its actual recipient.
-	"""
 	user = frappe.session.user
-	user_email = (frappe.db.get_value("User", user, "email") or user).strip().lower()
 
-	if user_email != invite.email:
-		context.message = _(
-			"This invite was sent to {0}, but you are signed in as {1}. "
-			"Sign out and sign up with the invited address to accept it."
-		).format(invite.email, user_email)
-		return
+	if user == "Guest":
+		if invite.status == "Accepted":
+			context.mode = "login"
+			context.message = _("This invitation has already been accepted. Log in to continue.")
+		elif invites.user_for_email(invite.email):
+			context.mode = "login"
+			context.message = _("You already have an account with this address. Log in to accept the invitation.")
+		else:
+			context.mode = "register"
+		return context
 
-	invites.enroll_in_batches(user, invite.batch_names())
+	# A session that has only ever rendered website pages may not have a CSRF
+	# token yet, in which case the page would print "None" and the accept POST
+	# would break the moment another tab (the LMS app, say) minted one. Mint it
+	# here so the page always carries the real token.
+	frappe.sessions.get_csrf_token()
 
-	invite.status = "Accepted"
-	invite.accepted_user = user
-	invite.accepted_on = frappe.utils.now_datetime()
-	invite.save(ignore_permissions=True)
+	if not invites.is_invitee(invite, user):
+		context.mode = "mismatch"
+		context.user_email = (frappe.db.get_value("User", user, "email") or user).strip().lower()
+		return context
 
-	context.accepted = True
+	context.first_name = frappe.db.get_value("User", user, "first_name") or ""
+	context.mode = "accepted" if invite.status == "Accepted" else "accept"
+	return context

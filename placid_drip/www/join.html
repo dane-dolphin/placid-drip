@@ -1,0 +1,387 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ batch.title if batch else _("Join a batch") }}{% endblock %}
+
+{% block page_content %}
+<section class="join-page" data-mode="{{ mode }}">
+	<div class="page-card-head">
+		<p class="join-kicker">
+			{%- if mode == "unavailable" -%}{{ _("Join link") }}
+			{%- else -%}{{ _("You're invited to join") }}
+			{%- endif -%}
+		</p>
+		<h4>
+			{%- if mode == "unavailable" -%}{{ _("Link unavailable") }}
+			{%- else -%}{{ batch.title }}
+			{%- endif -%}
+		</h4>
+		{% if batch and (batch.dates or batch.instructors) %}
+			<p class="join-meta">
+				{%- if batch.dates -%}<span>{{ batch.dates }}</span>{%- endif -%}
+				{%- if batch.dates and batch.instructors -%}<span class="join-dot" aria-hidden="true">·</span>{%- endif -%}
+				{%- if batch.instructors -%}<span>{{ _("with {0}").format(batch.instructors | join(", ")) }}</span>{%- endif -%}
+			</p>
+		{% endif %}
+	</div>
+
+	<div class="page-card">
+		{% if mode == "register" %}
+			<p class="join-intro">
+				{{ _("Create your account to join. Already have one?") }}
+				<a href="{{ login_url }}">{{ _("Log in") }}</a>
+			</p>
+
+			<form id="join-register" novalidate>
+				<div class="form-group">
+					<label for="join_email" class="small text-muted">{{ _("Email (this will be your username)") }}</label>
+					<input id="join_email" type="email" class="form-control" autocomplete="email" inputmode="email" maxlength="140" required autofocus>
+				</div>
+				<div class="join-name-row">
+					<div class="form-group">
+						<label for="join_first_name" class="small text-muted">{{ _("First name") }}</label>
+						<input id="join_first_name" type="text" class="form-control" autocomplete="given-name" maxlength="140" required>
+					</div>
+					<div class="form-group">
+						<label for="join_last_name" class="small text-muted">{{ _("Last name") }}</label>
+						<input id="join_last_name" type="text" class="form-control" autocomplete="family-name" maxlength="140">
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="join_password" class="small text-muted">{{ _("Password") }}</label>
+					<input id="join_password" type="password" class="form-control" autocomplete="new-password" required>
+					<p class="join-strength small text-muted mt-1 mb-0" hidden></p>
+				</div>
+				<div class="form-group">
+					<label for="join_confirm" class="small text-muted">{{ _("Confirm password") }}</label>
+					<input id="join_confirm" type="password" class="form-control" autocomplete="new-password" required>
+				</div>
+
+				<p class="join-status small" role="status" hidden></p>
+				<a id="join-login-existing" class="btn btn-default btn-block mb-3" href="{{ login_url }}" hidden>{{ _("Log in instead") }}</a>
+
+				<button type="submit" class="btn btn-primary btn-block btn-join-submit">
+					{{ _("Create account and join") }}
+				</button>
+			</form>
+
+		{% elif mode == "join" %}
+			<form id="join-batch">
+				<p class="join-intro">
+					{%- if first_name -%}
+						{{ _("Hi {0}, you're one click away.").format(first_name) }}
+					{%- else -%}
+						{{ _("You're one click away.") }}
+					{%- endif -%}
+				</p>
+				{% if batch.description %}
+					<p class="join-description">{{ batch.description }}</p>
+				{% endif %}
+
+				<p class="join-status small" role="status" hidden></p>
+
+				<button type="submit" class="btn btn-primary btn-block btn-join-submit">
+					{{ _("Join {0}").format(batch.title) }}
+				</button>
+			</form>
+			<p class="small text-muted mt-3 mb-0 text-center">
+				{{ _("Signed in as {0}.").format(user_email) }}
+				<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="join-signout">{{ _("Not you? Sign out") }}</button>
+			</p>
+
+		{% elif mode == "enrolled" %}
+			<p class="join-intro">{{ _("You're already in this batch.") }}</p>
+			<a class="btn btn-primary btn-block" href="{{ batch_url }}">{{ _("Go to the batch") }}</a>
+
+		{% elif mode == "full" %}
+			<p class="join-intro">{{ _("This batch is full.") }}</p>
+			<p class="small text-muted mb-0">
+				{{ _("Please contact your facilitator - they may be able to make room or point you to another batch.") }}
+			</p>
+
+		{% else %}
+			<p class="join-intro">{{ message }}</p>
+			<p class="small text-muted mb-0">
+				{{ _("Ask your facilitator for a new link.") }}
+			</p>
+		{% endif %}
+	</div>
+</section>
+{% endblock %}
+
+{% block style %}
+<style>
+	body {
+		background-color: var(--bg-color);
+	}
+
+	.join-page .page-card-head {
+		padding: max(5vh, 30px) 0 14px 0;
+		margin: 0 auto;
+		text-align: center;
+		max-width: 400px;
+	}
+
+	.join-page .join-kicker {
+		margin: 1rem 0 0.25rem;
+		font-size: var(--text-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-muted);
+	}
+
+	.join-page .page-card-head h4 {
+		margin: 0;
+		font-size: var(--text-2xl);
+		font-weight: var(--weight-semibold);
+		letter-spacing: 0.01em;
+		color: var(--text-color);
+		line-height: 1.25;
+	}
+
+	.join-page .join-meta {
+		margin: 0.5rem 0 0;
+		font-size: var(--text-sm);
+		color: var(--text-muted);
+	}
+
+	.join-page .join-dot {
+		margin: 0 0.4em;
+	}
+
+	.join-page .join-intro {
+		color: var(--text-color);
+		margin-bottom: 1rem;
+	}
+
+	.join-page .join-description {
+		color: var(--text-muted);
+		font-size: var(--text-sm);
+		margin-bottom: 1.25rem;
+		white-space: pre-line;
+	}
+
+	.join-page .join-name-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+	}
+
+	@media (max-width: 420px) {
+		.join-page .join-name-row {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.join-page .form-group {
+		margin-bottom: 1rem;
+	}
+
+	.join-page label.small {
+		display: block;
+		margin-bottom: 0.25rem;
+	}
+
+	.join-page .join-status {
+		margin: 0 0 0.75rem 0;
+	}
+
+	.join-page .join-strength.is-ok {
+		color: var(--green-600, #16794c);
+	}
+
+	.join-page .join-strength.is-weak {
+		color: var(--red-600, #b52a2a);
+	}
+
+	{% include "templates/styles/card_style.css" %}
+</style>
+{% endblock %}
+
+{% block script %}
+{{ super() }}
+<script>
+frappe.ready(function () {
+	const page = document.querySelector(".join-page");
+	if (!page) return;
+
+	const token = {{ token | tojson }};
+
+	// Plain fetch rather than frappe.call: frappe.call pops its own dialogs for
+	// 4xx responses, and every outcome here is explained inline next to the form.
+	async function post(method, params) {
+		const response = await fetch(`/api/method/${method}`, {
+			method: "POST",
+			headers: { Accept: "application/json", "X-Frappe-CSRF-Token": frappe.csrf_token },
+			body: new URLSearchParams(params),
+		});
+		const data = await response.json().catch(() => ({}));
+		return { ok: response.ok, status: response.status, data };
+	}
+
+	function serverMessage(data) {
+		try {
+			const messages = JSON.parse(data._server_messages || "[]");
+			if (messages.length) return JSON.parse(messages[0]).message;
+		} catch (e) {
+			// fall through to the caller's default
+		}
+		return data.message && typeof data.message === "string" ? data.message : null;
+	}
+
+	function fallbackError(status) {
+		if (status === 429) return __("Too many requests from your network. Please try again later.");
+		return __("Something went wrong. Please check your connection and try again.");
+	}
+
+	function setStatus(form, message, isError) {
+		const el = form.querySelector(".join-status");
+		if (!el) return;
+		el.textContent = message || "";
+		el.hidden = !message;
+		el.classList.toggle("text-danger", !!isError);
+		el.classList.toggle("text-success", !isError);
+	}
+
+	function setBusy(form, busy) {
+		const button = form.querySelector(".btn-join-submit");
+		if (button) button.disabled = busy;
+	}
+
+	// ----- Register and join -----------------------------------------------
+	const registerForm = document.getElementById("join-register");
+	if (registerForm) {
+		const email = registerForm.querySelector("#join_email");
+		const first = registerForm.querySelector("#join_first_name");
+		const last = registerForm.querySelector("#join_last_name");
+		const password = registerForm.querySelector("#join_password");
+		const confirm = registerForm.querySelector("#join_confirm");
+		const strength = registerForm.querySelector(".join-strength");
+		const loginInstead = registerForm.querySelector("#join-login-existing");
+
+		let strengthTimer = null;
+		password.addEventListener("input", () => {
+			clearTimeout(strengthTimer);
+			if (!password.value) {
+				strength.hidden = true;
+				return;
+			}
+			strengthTimer = setTimeout(checkStrength, 300);
+		});
+
+		// Same policy the server applies in User.validate, shown as you type so a
+		// rejected password is not the first thing you learn after submitting.
+		async function checkStrength() {
+			const { ok, data } = await post("frappe.core.doctype.user.user.test_password_strength", {
+				new_password: password.value,
+				user_data: JSON.stringify([first.value, "", last.value, email.value, ""]),
+			});
+			const feedback = ok && data.message && data.message.feedback;
+			if (!feedback) {
+				strength.hidden = true;
+				return;
+			}
+			const passed = feedback.password_policy_validation_passed;
+			const hints = [feedback.warning].concat(feedback.suggestions || []).filter(Boolean);
+			strength.textContent = passed
+				? __("Good password.")
+				: hints.join(" ") || __("Please choose a stronger password.");
+			strength.classList.toggle("is-ok", !!passed);
+			strength.classList.toggle("is-weak", !passed);
+			strength.hidden = false;
+		}
+
+		let busy = false;
+		registerForm.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			if (busy) return;
+
+			loginInstead.hidden = true;
+
+			if (!email.value.trim() || !email.checkValidity()) {
+				setStatus(registerForm, __("Please enter a valid email address."), true);
+				email.focus();
+				return;
+			}
+			if (!first.value.trim()) {
+				setStatus(registerForm, __("Please enter your first name."), true);
+				first.focus();
+				return;
+			}
+			if (!password.value) {
+				setStatus(registerForm, __("Please choose a password."), true);
+				password.focus();
+				return;
+			}
+			if (password.value !== confirm.value) {
+				setStatus(registerForm, __("Passwords do not match."), true);
+				confirm.focus();
+				return;
+			}
+
+			busy = true;
+			setBusy(registerForm, true);
+			setStatus(registerForm, "", false);
+
+			const { ok, status, data } = await post("placid_drip.api.batch_join.register_and_join", {
+				token,
+				email: email.value.trim(),
+				first_name: first.value.trim(),
+				last_name: last.value.trim(),
+				password: password.value,
+			});
+
+			if (ok && data.message && data.message.redirect_to) {
+				setStatus(registerForm, __("You're in. Taking you to your batch..."), false);
+				window.location.replace(data.message.redirect_to);
+				return;
+			}
+
+			setStatus(registerForm, serverMessage(data) || fallbackError(status), true);
+			// An address that already has an account is not a mistake to fix in the
+			// form - the way forward is to log in, so put that button right here.
+			loginInstead.hidden = data.exc_type !== "AccountExistsError";
+			busy = false;
+			setBusy(registerForm, false);
+		});
+	}
+
+	// ----- Join (signed in) ------------------------------------------------
+	const joinForm = document.getElementById("join-batch");
+	if (joinForm) {
+		let busy = false;
+
+		joinForm.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			if (busy) return;
+
+			busy = true;
+			setBusy(joinForm, true);
+			setStatus(joinForm, "", false);
+
+			const { ok, status, data } = await post("placid_drip.api.batch_join.join", { token });
+
+			if (ok && data.message && data.message.redirect_to) {
+				setStatus(joinForm, __("You're in. Taking you to your batch..."), false);
+				window.location.replace(data.message.redirect_to);
+				return;
+			}
+
+			setStatus(joinForm, serverMessage(data) || fallbackError(status), true);
+			busy = false;
+			setBusy(joinForm, false);
+		});
+	}
+
+	// ----- Not you? ---------------------------------------------------------
+	const signout = document.getElementById("join-signout");
+	if (signout) {
+		signout.addEventListener("click", () => {
+			signout.disabled = true;
+			fetch("/api/method/logout", { credentials: "include" })
+				.then(() => window.location.reload())
+				.catch(() => window.location.reload());
+		});
+	}
+});
+</script>
+{% endblock %}
