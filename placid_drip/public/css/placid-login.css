@@ -179,7 +179,7 @@ body[data-path="login"] .placid-login-form {
 body[data-path="login"] .placid-login-logo {
   width: 15rem;
   height: 8.75rem;
-  margin: 0 0 1.25rem -0.35rem;
+  margin: 0 auto 1.25rem;
   background: url("/assets/placid_drip/images/placid-logo-hhh.png") center 46% / 27rem auto no-repeat;
 }
 
@@ -188,7 +188,7 @@ body[data-path="login"] .page-card-head {
   display: block;
   margin: 0 0 1.5rem;
   padding: 0;
-  text-align: left;
+  text-align: center;
 }
 
 body[data-path="login"] .page-card-head .app-logo {
