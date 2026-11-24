@@ -13,6 +13,7 @@ override_whitelisted_methods = {
   "lms.lms.utils.get_course_details": "placid_drip.overrides.lms_utils.get_course_details",
   "lms.lms.utils.get_batches": "placid_drip.overrides.lms_utils.get_batches",
   "lms.lms.utils.get_batch_details": "placid_drip.overrides.lms_utils.get_batch_details",
+  "lms.lms.utils.get_my_batches": "placid_drip.overrides.lms_utils.get_my_batches",
   "lms.lms.utils.get_batch_courses": "placid_drip.overrides.lms_utils.get_batch_courses",
   # let facilitators remove students from batches they run
   "lms.lms.api.delete_documents": "placid_drip.overrides.lms_api.delete_documents",

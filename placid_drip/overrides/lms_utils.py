@@ -3,7 +3,7 @@ from frappe.rate_limiter import rate_limit
 from frappe.utils import now_datetime, get_datetime
 from placid_drip.access import resolve_user_batch_for_course, can_access_lesson
 from lms.lms import utils as lms_utils
-from placid_drip import membership
+from placid_drip import membership, parishes
 from placid_drip.api import course_levels
 from placid_drip.constants import RATE_LIMIT, RATE_LIMIT_WINDOW
 
@@ -335,7 +335,32 @@ def get_courses(filters=None, start=0):
 
     courses = lms_utils.get_courses(filters=filters, start=start)
 
-    return _attach_levels(courses)
+    return _attach_levels(_live_enrollment_counts(courses))
+
+
+def _live_enrollment_counts(courses):
+    """Replace each course's `enrollments` with a count taken now.
+
+    `LMS Course.enrollments` is a stored counter that upstream only refreshes in
+    an hourly job, so for up to an hour after students join or are removed the
+    course cards kept showing the old number. Counted here in one grouped query
+    for the courses being returned; the stored column is left for the job.
+    """
+    if not courses:
+        return courses
+
+    rows = frappe.get_all(
+        "LMS Enrollment",
+        filters={"course": ["in", [c["name"] for c in courses]], "member_type": "Student"},
+        fields=["course", "count(name) as enrollments"],
+        group_by="course",
+    )
+    counts = {row["course"]: row["enrollments"] for row in rows}
+
+    for course in courses:
+        course["enrollments"] = counts.get(course["name"], 0)
+
+    return courses
 
 
 #: Roles that may see unpublished courses in the catalogue. Course Creator is in
@@ -411,7 +436,10 @@ def _attach_levels(courses):
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_course_details(course):
-    return lms_utils.get_course_details(course)
+    details = lms_utils.get_course_details(course)
+    if details:
+        _live_enrollment_counts([details])
+    return details
 
 
 # -------------------------
@@ -421,11 +449,18 @@ def get_course_details(course):
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=RATE_LIMIT, seconds=RATE_LIMIT_WINDOW)
 def get_batches(filters=None, start=0, order_by="start_date"):
-    return lms_utils.get_batches(
+    batches = lms_utils.get_batches(
         filters=filters,
         start=start,
         order_by=order_by,
     )
+    return parishes.attach_card_details(batches)
+
+
+@frappe.whitelist()
+def get_my_batches():
+    """Upstream's "my batches" for the home page, with card pictures attached."""
+    return parishes.attach_card_details(lms_utils.get_my_batches())
 
 
 @frappe.whitelist(allow_guest=True)
@@ -443,6 +478,7 @@ def get_batch_details(batch):
 
     if details:
         details["can_edit"] = _can_edit_batch(batch, details)
+        parishes.attach_card_details([details])
 
     return details
 

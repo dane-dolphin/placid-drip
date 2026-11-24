@@ -13,6 +13,10 @@
   "is_group",
   "details_section",
   "description",
+  "images_section",
+  "image",
+  "column_break_images",
+  "cover_image",
   "nsm_section",
   "lft",
   "rgt",
@@ -66,6 +70,27 @@
    "label": "Description"
   },
   {
+   "fieldname": "images_section",
+   "fieldtype": "Section Break",
+   "label": "Pictures"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "label": "Picture",
+   "description": "A square picture or logo, shown next to the name."
+  },
+  {
+   "fieldname": "column_break_images",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cover_image",
+   "fieldtype": "Attach Image",
+   "label": "Cover Picture",
+   "description": "A wide picture of the church, shown across the top of its batches."
+  },
+  {
    "collapsible": 1,
    "fieldname": "nsm_section",
    "fieldtype": "Section Break",
@@ -106,7 +131,7 @@
  "index_web_pages_for_search": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2026-08-08 10:00:00.000000",
+ "modified": "2026-11-24 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Placid Drip",
  "name": "Organization",

@@ -44,4 +44,6 @@ def get_my_evaluator_batches(with_courses: bool = False):
 		for batch in batches:
 			batch["courses"] = courses_by_batch.get(batch["name"], [])
 
-	return batches
+	from placid_drip import parishes
+
+	return parishes.attach_card_details(batches)
