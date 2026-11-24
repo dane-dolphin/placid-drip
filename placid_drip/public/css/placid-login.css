@@ -1,358 +1,373 @@
-/* ===== Placid Login Theme: dark base + banner + floating heroes ===== */
+/* Placid login: a split screen. The left half is the brand - motto and a photo
+   on pine green; the right half is the form on warm paper. Below 900px the
+   brand half steps aside and the form takes the whole screen.
+
+   Everything is scoped to body[data-path="login"] because frappe serves this
+   stylesheet's page inside its ordinary website shell. */
+
 body[data-path="login"] {
-  background-color: #0f1f14 !important;
-  min-height: 50vh;
-  overflow-x: hidden;
+  --pl-pine: #315d54;
+  --pl-pine-deep: #1f4039;
+  --pl-pine-ink: #17332d;
+  --pl-mint: #6ac3af;
+  --pl-paper: #fbfaf6;
+  --pl-cream: #f4efe2;
+  --pl-rule: #d3ddd8;
+  --pl-ink: #1c2b27;
+  --pl-ink-soft: #5d6d68;
+  --pl-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
 
-  background-image:
-  /* Green glow (left) */
-  radial-gradient(
-    900px 500px at 18% 22%,
-    rgba(46, 180, 150, 0.35),
-    rgba(46, 140, 120, 0.18) 35%,
-    rgba(0, 0, 0, 0) 65%
-  ),
-
-  /* Yellow glow (right) */
-  radial-gradient(
-    700px 420px at 82% 28%,
-    rgba(255, 215, 90, 0.28),
-    rgba(244, 200, 76, 0.14) 40%,
-    rgba(0, 0, 0, 0) 70%
-  ),
-
-  /* Base dark */
-  linear-gradient(
-    to bottom,
-    rgba(10, 12, 12, 0.94),
-    rgba(10, 12, 12, 0.94)
-  );
-
-  /* ✅ Key: gradients must fill the whole page */
-  background-repeat: no-repeat, no-repeat, repeat;
-  background-size: cover, cover, cover;
-  background-position: center, center, center;
-  background-attachment: scroll;
+  background: var(--pl-paper) !important;
+  color: var(--pl-ink);
 }
 
-/* Right column: center contents but don't shrink widths */
-body[data-path="login"] .placid-login-right {
-  display: flex;
-  flex-direction: column-reverse;
-  align-items: center;   /* centers the column */
-  width: 100%;
-  z-index: 5;
-  position: relative;
-}
-
-/* Force the login card to stay "full width" within a max width */
-body[data-path="login"] .placid-login-right .login-content.page-card {
-  width: min(420px, 92vw);
-  max-width: 420px;
-}
-
-/* Make CTA match the login card width */
-body[data-path="login"] .placid-login-right .browse-courses-cta {
-  width: min(420px, 92vw);
-  max-width: 420px;
-  margin-top: 2vh;
-  /* gap to the login card (shown below it via column-reverse); this used to come
-     from the nested page wrapper login.html rendered by mistake */
-  margin-bottom: 72px;
-  position: relative;
-  z-index: 10;
-}
-
-
-/* Put the banner “strip” height control here */
-body[data-path="login"] .page-content-wrapper {
-  padding-top: 56px; /* pushes content below banner area */
-  min-height:min-content !important;
-}
-
-/* Hide navbars (you already do this) */
-body[data-path="login"] .navbar {
-  display: none !important;
-}
-
-body[data-path="login"] .page-footer {
-  display: none !important;
-}
-
-body[data-path="login"] .web-footer {
-  display: none !important;
-}
-
-body[data-path="login"] .website-footer {
-  display: none !important;
-}
-
+/* ----- strip frappe's website chrome ----------------------------------- */
+body[data-path="login"] .navbar,
+body[data-path="login"] .page-breadcrumbs,
+body[data-path="login"] .page-header-wrapper,
+body[data-path="login"] .web-footer,
+body[data-path="login"] .page-footer,
+body[data-path="login"] .website-footer,
 body[data-path="login"] footer {
   display: none !important;
 }
 
-/* Hide default frappe head */
-body[data-path="login"] .page-card-head {
-  display: none !important;
+body[data-path="login"] .page-content-wrapper {
+  min-height: 100vh !important;
+  padding: 0;
 }
 
-/* ===== Floating hero images using pseudo-elements ===== */
-/* Attach to a stable container that exists on /login */
-body[data-path="login"] .page-content {
-  position: relative;
-}
-
-/* hero-1 (left / big subtle) */
-body[data-path="login"] .page-content::before {
-  content: "";
-  position: absolute;
-  left: -60px;
-  top: 120px;
-  width: min(520px, 45vw);
-  height: min(520px, 45vw);
-  background: url("/assets/placid_drip/images/hero-1.png") center/contain no-repeat;
-  opacity: 0.28;
-  filter: blur(0.2px) saturate(0.9);
-  pointer-events: none;
-  z-index: 0;
-}
-
-
-/* Ensure the actual login UI sits above the decorative layers */
-body[data-path="login"] .login-content,
-body[data-path="login"] .for-login,
-body[data-path="login"] .page_content,
 body[data-path="login"] main.container {
-  position: relative;
-  z-index: 2;
-  
-}
-
-/* ===== Make your brand/logo readable on dark ===== */
-body[data-path="login"] .login-hero,
-body[data-path="login"] .placid-login-left {
-  color: rgba(255,255,255,0.92);
-}
-
-body[data-path="login"] .placid-login-left {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-
-  /* ✅ centers items horizontally */
-  justify-content: center;
-
-  /* ✅ centers items vertically inside each row */
-  align-items: center;
-
-  /* ✅ centers rows when wrapping happens */
-  align-content: center;
-
-  gap: 24px;
-  text-align: center;
-  padding: 20px;
-}
-
-body[data-path="login"] .login-hero img,
-body[data-path="login"] .placid-login-logo {
-  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.55));
-}
-
-body[data-path="login"] .login-hero h1,
-body[data-path="login"] .placid-login-left h1 {
-  color: #f4f5f7;
-  text-shadow: 0 10px 26px rgba(0,0,0,0.60);
-}
-
-/* If your logo is an image with faint text, give it a subtle backing */
-body[data-path="login"] .login-hero,
-body[data-path="login"] .placid-login-left {
-  background: rgba(10, 12, 12, 0.18);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 20px;
-  padding: 18px 18px;
-  backdrop-filter: blur(10px);
-}
-
-/* ===== Login card: keep it bright but “premium” ===== */
-body[data-path="login"] .login-content.page-card {
-  width: min(420px, 92vw);
-  padding: 32px;
-  border-radius: 22px;
-
-  /* Glass */
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(18px) saturate(1.25);
-  -webkit-backdrop-filter: blur(18px) saturate(1.25);
-
-  /* Glass edge + depth */
-  border: 1px solid rgba(255,255,255,0.35);
-  box-shadow:
-    0 30px 80px rgba(0,0,0,0.45),
-    inset 0 1px 0 rgba(255,255,255,0.4);
-
-  position: relative;
-}
-
-body[data-path="login"] .login-content.page-card::after {
-  content: "";
-  position: absolute;
-  inset: -20px;
-  border-radius: inherit;
-  background: radial-gradient(
-    circle at top,
-    rgba(255,255,255,0.25),
-    transparent 60%
-  );
-  z-index: -1;
-}
-
-/* Inputs */
-body[data-path="login"] .login-content input {
-  border-radius: 12px;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-}
-
-body[data-path="login"] .login-content input:focus {
-  border-color: #f4c84c;
-  box-shadow: 0 0 0 3px rgba(244,200,76,0.25);
-}
-
-/* Button */
-body[data-path="login"] .btn-primary {
-  background: #f4c84c;
-  border: none;
-  color: #1f2937;
-  font-weight: 700;
-  border-radius: 999px;
-  box-shadow: 0 18px 40px rgba(244,200,76,0.18);
-}
-
-/* Optional: animate in */
-body[data-path="login"] .login-content {
-  animation: fadeUp 0.6s ease-out;
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Responsive: hide the big hero-2 on small screens */
-@media (max-width: 900px) {
-  body[data-path="login"] .page-content::after {
-    display: none;
-  }
-  body[data-path="login"] .page-content::before {
-    opacity: 0.18;
-    left: -120px;
-  }
-}
-
-/* “Continue learning” label (CSS-only) */
-body[data-path="login"] .login-content.page-card::before {
-  content: "CONTINUE LEARNING";
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  font-weight: 800;
-  color: rgba(31,41,55,0.55);
-  margin-bottom: 10px;
-}
-
-
-body[data-path="login"] .browse-courses-cta {
+  max-width: none;
   width: 100%;
-  max-width: 420px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 14px;
-  border-radius: 999px;
-  text-decoration: none;
-  font-weight: 800;
-
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.14);
-  color: rgba(255,255,255,0.88);
-
-  backdrop-filter: blur(10px);
-  transition: transform 0.15s ease, background 0.15s ease;
+  margin: 0 !important;
+  padding: 0;
 }
 
-body[data-path="login"] .browse-courses-cta:hover {
-  background: rgba(255,255,255,0.14);
-  transform: translateY(-1px);
+/* ----- the two halves --------------------------------------------------- */
+body[data-path="login"] .placid-login-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100vh;
 }
 
-
-/* ===== Cursor follower (login page only) ===== */
-body[data-path="login"] .cursor-ring {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 9999;
-
-  border: 2px solid rgba(46, 140, 120, 0.65); /* teal */
-  box-shadow: 0 0 12px rgba(46, 140, 120, 0.25);
-  background: transparent;
-
-  transform: translate(-50%, -50%);
-  transition: opacity 0.2s ease;
-  opacity: 0;
+@media (min-width: 900px) {
+  body[data-path="login"] .placid-login-shell {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 10fr);
+  }
 }
 
-/* Show cursor only when mouse is moving */
-body[data-path="login"].cursor-active .cursor-ring {
-  opacity: 1;
+/* ----- brand half ------------------------------------------------------- */
+body[data-path="login"] .placid-login-hero {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  color: var(--pl-cream);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(106, 195, 175, 0.22), rgba(106, 195, 175, 0) 60%),
+    linear-gradient(160deg, var(--pl-pine) 0%, var(--pl-pine-deep) 55%, var(--pl-pine-ink) 100%);
 }
 
-/* Hover feedback on interactive elements */
-body[data-path="login"] a:hover ~ .cursor-ring,
-body[data-path="login"] button:hover ~ .cursor-ring {
-  transform: translate(-50%, -50%) scale(1.2);
+@media (min-width: 900px) {
+  body[data-path="login"] .placid-login-hero {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2.5rem;
+    padding: clamp(2.5rem, 5vw, 4.5rem);
+  }
 }
 
-/* Inner dot */
-body[data-path="login"] .cursor-ring::after {
+/* A faint ring, echoing the arc of the logo, so the panel is not a flat fill. */
+body[data-path="login"] .placid-login-hero::before {
   content: "";
   position: absolute;
-  top: 50%;
-  left: 50%;
-
-  width: 6px;
-  height: 6px;
+  right: -18vw;
+  top: -18vw;
+  width: 46vw;
+  height: 46vw;
   border-radius: 50%;
-
-  background: rgba(46, 140, 120, 0.9);
-
-  transform: translate(-50%, -50%);
-  transition:
-    width 0.15s ease,
-    height 0.15s ease,
-    background 0.15s ease;
+  border: 1px solid rgba(244, 239, 226, 0.14);
+  box-shadow: 0 0 0 5vw rgba(244, 239, 226, 0.03);
+  pointer-events: none;
 }
 
-/* Mouse down / click feedback */
-body[data-path="login"] .cursor-ring.cursor-click {
-  width: 22px;
-  height: 22px;
-  box-shadow: 0 0 8px rgba(46, 140, 120, 0.35);
+body[data-path="login"] .placid-hero-kicker {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--pl-mint);
 }
 
-body[data-path="login"] .cursor-ring.cursor-click::after {
-  width: 12px;
-  height: 12px;
-  background: rgba(46, 140, 120, 1);
+body[data-path="login"] .placid-hero-title {
+  margin: 1.25rem 0 0;
+  font-family: var(--pl-serif);
+  font-weight: 500;
+  font-size: clamp(3rem, 5.4vw, 5rem);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  color: var(--pl-cream);
 }
 
-body[data-path="login"] .cursor-ring.cursor-click {
-  transform: translate(-50%, -50%) scale(0.9);
+body[data-path="login"] .placid-hero-title em {
+  font-style: italic;
+  color: var(--pl-mint);
+}
+
+body[data-path="login"] .placid-hero-text {
+  margin: 1.5rem 0 0;
+  max-width: 26rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: rgba(244, 239, 226, 0.78);
+}
+
+/* The photo is a small file, so it is shown as a framed print at its own size
+   rather than stretched across the panel. */
+body[data-path="login"] .placid-hero-photo {
+  position: relative;
+  align-self: flex-end;
+  width: min(100%, 26rem);
+  margin: 0 0.75rem 0.75rem 0;
+}
+
+body[data-path="login"] .placid-hero-photo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translate(0.75rem, 0.75rem);
+  border: 1px solid var(--pl-mint);
+  border-radius: 14px;
+}
+
+body[data-path="login"] .placid-hero-photo img {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.7);
+}
+
+/* ----- form half -------------------------------------------------------- */
+body[data-path="login"] .placid-login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem 3rem;
+  background: var(--pl-paper);
+}
+
+/* On small screens the brand half is gone; a pine rule keeps the page branded. */
+@media (max-width: 899px) {
+  body[data-path="login"] .placid-login-panel {
+    align-items: flex-start;
+    border-top: 6px solid var(--pl-pine);
+    padding-top: 2rem;
+  }
+}
+
+body[data-path="login"] .placid-login-form {
+  width: 100%;
+  max-width: 23.5rem;
+}
+
+/* The logo file has wide empty margins; shown as a cropped background so the
+   mark itself, not its whitespace, sets the size. */
+body[data-path="login"] .placid-login-logo {
+  width: 15rem;
+  height: 8.75rem;
+  margin: 0 0 1.25rem -0.35rem;
+  background: url("/assets/placid_drip/images/placid-logo-hhh.png") center 46% / 27rem auto no-repeat;
+}
+
+/* Section heading: frappe's own h4, minus its copy of the logo. */
+body[data-path="login"] .page-card-head {
+  display: block;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  text-align: left;
+}
+
+body[data-path="login"] .page-card-head .app-logo {
+  display: none;
+}
+
+body[data-path="login"] .page-card-head h4 {
+  margin: 0;
+  font-family: var(--pl-serif);
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pl-ink);
+}
+
+body[data-path="login"] .login-content.page-card {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-path="login"] .login-content.page-card form {
+  max-width: none;
+  margin: 0;
+}
+
+/* ----- fields ----------------------------------------------------------- */
+body[data-path="login"] .login-content .form-group {
+  margin-bottom: 0.875rem;
+}
+
+body[data-path="login"] .login-content .page-card-body input[type="text"],
+body[data-path="login"] .login-content .page-card-body input[type="email"],
+body[data-path="login"] .login-content .page-card-body input[type="password"],
+body[data-path="login"] .login-content .page-card-body .placid-code-input {
+  height: 2.875rem;
+  margin-bottom: 0;
+  border: 1px solid var(--pl-rule);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pl-ink);
+  font-size: 0.9375rem;
+  box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+body[data-path="login"] .login-content .page-card-body input:focus {
+  border-color: var(--pl-pine);
+  box-shadow: 0 0 0 3px rgba(106, 195, 175, 0.35);
+  outline: none;
+}
+
+body[data-path="login"] .login-content .email-field input,
+body[data-path="login"] .login-content .password-field input {
+  padding-left: 2.75rem !important;
+}
+
+body[data-path="login"] .login-content .page-card-body .field-icon {
+  left: 0.85rem !important;
+  top: 50% !important;
+  transform: translateY(-50%);
+}
+
+body[data-path="login"] .login-content .password-field .toggle-password {
+  right: 0.9rem !important;
+  top: 50% !important;
+  transform: translateY(-50%);
+  font-size: 0.8125rem !important;
+  font-weight: 600;
+  color: var(--pl-pine) !important;
+}
+
+body[data-path="login"] .login-content .forgot-password-message {
+  margin: 0.25rem 0 0;
+  text-align: right;
+}
+
+body[data-path="login"] .login-content .forgot-password-message a,
+body[data-path="login"] .login-content .sign-up-message a,
+body[data-path="login"] .placid-code-step .placid-code-links a {
+  color: var(--pl-pine);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* ----- buttons ---------------------------------------------------------- */
+body[data-path="login"] .login-content .page-card-actions {
+  margin-top: 1.25rem;
+}
+
+body[data-path="login"] .login-content .btn-primary,
+body[data-path="login"] .login-content .btn-login-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.875rem;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+body[data-path="login"] .login-content .btn-primary {
+  border: 1px solid var(--pl-pine);
+  background: var(--pl-pine);
+  color: #fff;
+}
+
+body[data-path="login"] .login-content .btn-primary:hover,
+body[data-path="login"] .login-content .btn-primary:focus {
+  border-color: var(--pl-pine-deep);
+  background: var(--pl-pine-deep);
+}
+
+body[data-path="login"] .login-content .btn-primary:active {
+  transform: translateY(1px);
+}
+
+body[data-path="login"] .login-content .btn-primary:focus-visible,
+body[data-path="login"] .login-content .btn-login-option:focus-visible {
+  outline: 2px solid var(--pl-pine);
+  outline-offset: 2px;
+}
+
+body[data-path="login"] .login-content .page-card-body .btn-login-option {
+  border: 1px solid var(--pl-pine);
+  background: transparent;
+  color: var(--pl-pine);
+}
+
+body[data-path="login"] .login-content .page-card-body .btn-login-option:hover {
+  border: 1px solid var(--pl-pine);
+  background: rgba(106, 195, 175, 0.16);
+}
+
+body[data-path="login"] .login-content .social-logins {
+  margin-top: 0;
+}
+
+body[data-path="login"] .login-content .social-login-buttons {
+  margin-top: 0 !important;
+}
+
+body[data-path="login"] .login-content .login-button-wrapper {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* "or", with a rule either side */
+body[data-path="login"] .login-content .login-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin: 1.125rem 0 !important;
+  font-size: 0.8125rem;
+  color: var(--pl-ink-soft) !important;
+}
+
+body[data-path="login"] .login-content .login-divider::before,
+body[data-path="login"] .login-content .login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--pl-rule);
+}
+
+body[data-path="login"] .login-content .sign-up-message {
+  margin-top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-path="login"] * {
+    transition: none !important;
+  }
 }
 
 /* ===== Login with email code (placid-login-code.js) ===== */

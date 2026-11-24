@@ -528,3 +528,60 @@ def get_batch_students(batch):
     students = lms_utils.get_batch_students(batch)
 
     return membership.attach_organization(students, user_key="email")
+
+# -------------------------
+# DISCUSSIONS
+# -------------------------
+
+@frappe.whitelist()
+def get_discussion_topics(doctype, docname, single_thread=False):
+    """Upstream topic list, narrowed to what the caller's batch may see.
+
+    See `placid_drip.discussions` for the rule. A batch's own discussion is
+    refused outright to non-members, because upstream would otherwise create the
+    thread for them on first look.
+    """
+    from placid_drip import discussions
+
+    user = frappe.session.user
+    if doctype == discussions.BATCH and not discussions.is_staff(user):
+        if docname not in discussions.visible_batches(user):
+            frappe.throw("You are not a member of this batch.", frappe.PermissionError)
+
+    result = lms_utils.get_discussion_topics(doctype, docname, frappe.utils.sbool(single_thread))
+
+    if not isinstance(result, list):
+        return result
+
+    names = [row["name"] for row in result]
+    if not names:
+        return result
+
+    batches = dict(
+        frappe.get_all(
+            "Discussion Topic",
+            filters={"name": ["in", names]},
+            fields=["name", discussions.BATCH_FIELD],
+            as_list=True,
+        )
+    )
+
+    visible = []
+    for row in result:
+        probe = frappe._dict(
+            owner=row.get("owner"),
+            reference_doctype=doctype,
+            reference_docname=docname,
+            batch=batches.get(row["name"]),
+        )
+        if discussions.can_see_topic(probe, user):
+            visible.append(row)
+    return visible
+
+
+@frappe.whitelist()
+def get_discussion_replies(topic):
+    from placid_drip import discussions
+
+    discussions.assert_can_see_topic(topic)
+    return lms_utils.get_discussion_replies(topic)

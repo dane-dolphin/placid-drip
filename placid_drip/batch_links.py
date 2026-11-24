@@ -22,7 +22,8 @@ from frappe import _
 from frappe.utils import cint, get_url, validate_email_address
 
 from placid_drip.invites import assert_can_invite, enroll_in_batches
-from placid_drip.student_accounts import create_student_account, user_for_email
+from placid_drip.facilitator import get_facilitated_batch_names, is_staff
+from placid_drip.student_accounts import MAX_NAME_LENGTH, create_student_account, user_for_email
 
 TOKEN_FIELD = "invite_token"
 TOKEN_LENGTH = 32
@@ -184,9 +185,9 @@ def join_with_email(token: str, email: str, first_name: str, last_name: str, pas
 	Three outcomes, told apart by `status`:
 
 	* ``enrolled`` - the address already has an account, which is now in the batch.
-	  Nothing about that account is changed (the name typed into the form is
-	  ignored) and the caller must NOT sign the visitor in: knowing an email
-	  address is enough to be enrolled, but never enough to be logged in.
+	  Its name is updated to what was typed (see `_update_name`), but the caller
+	  must NOT sign the visitor in: knowing an email address is enough to be
+	  enrolled, but never enough to be logged in.
 	* ``password_required`` - no account yet and no password given. Nothing was
 	  written; the page shows its password fields and submits again.
 	* ``created`` - a new account was made and enrolled; `user` names it so the
@@ -210,6 +211,7 @@ def join_with_email(token: str, email: str, first_name: str, last_name: str, pas
 		if not cint(frappe.db.get_value("User", existing, "enabled")):
 			frappe.throw(_("This account cannot join right now. Please contact your facilitator."))
 		result = join(token, existing)
+		_update_name(existing, first_name, last_name)
 		result["status"] = "enrolled"
 		return result
 
@@ -225,6 +227,42 @@ def join_with_email(token: str, email: str, first_name: str, last_name: str, pas
 	result["status"] = "created"
 	result["user"] = user.name
 	return result
+
+
+def _update_name(user: str, first_name: str, last_name: str) -> None:
+	"""Bring a returning student's name in line with what they just typed.
+
+	Students are often pre-registered with a placeholder or misspelt name; the
+	join form is where they correct it. A blank last name leaves the stored one
+	alone rather than erasing it.
+
+	Staff and facilitators are skipped. The form is open to anyone holding the
+	link, and it should not be a way to rename the people who run the site.
+
+	Written with `db.set_value`: a full `User.save` re-runs role assignment and
+	the LMS hooks for what is a two-column change.
+	"""
+	if is_staff(user) or get_facilitated_batch_names(user):
+		return
+
+	first_name = (first_name or "").strip()[:MAX_NAME_LENGTH]
+	last_name = (last_name or "").strip()[:MAX_NAME_LENGTH]
+	if not first_name:
+		return
+
+	current = frappe.db.get_value("User", user, ["first_name", "middle_name", "last_name"], as_dict=True)
+	last_name = last_name or (current.last_name or "")
+
+	if first_name == (current.first_name or "") and last_name == (current.last_name or ""):
+		return
+
+	full_name = " ".join(part for part in (first_name, current.middle_name, last_name) if part)
+	frappe.db.set_value(
+		"User",
+		user,
+		{"first_name": first_name, "last_name": last_name, "full_name": full_name},
+	)
+	frappe.clear_cache(user=user)
 
 
 # ---------------------------------------------------------------------------

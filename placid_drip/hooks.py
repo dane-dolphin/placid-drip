@@ -19,6 +19,9 @@ override_whitelisted_methods = {
   # surface Organization, which upstream's hardcoded User field lists omit
   "lms.lms.api.get_profile_details": "placid_drip.overrides.lms_api.get_profile_details",
   "lms.lms.utils.get_batch_students": "placid_drip.overrides.lms_utils.get_batch_students",
+  # lesson and batch discussions are scoped to the batch (placid_drip.discussions)
+  "lms.lms.utils.get_discussion_topics": "placid_drip.overrides.lms_utils.get_discussion_topics",
+  "lms.lms.utils.get_discussion_replies": "placid_drip.overrides.lms_utils.get_discussion_replies",
   # per-IP hourly + daily limits in code (placid_drip.rate_limits), replacing the
   # System Settings password_reset_limit / rate_limit_email_link_login
   "frappe.core.doctype.user.user.reset_password": "placid_drip.overrides.user.reset_password",
@@ -32,6 +35,10 @@ doc_events = {
     # because the invite is matched on email rather than on a redeemed token.
     "User": {
         "after_insert": "placid_drip.invites.accept_for_user",
+    },
+    # Stamps a lesson topic with its author's batch; see placid_drip.discussions.
+    "Discussion Topic": {
+        "before_insert": "placid_drip.discussions.set_topic_batch",
     },
     "LMS Batch Enrollment": {
         "on_trash": "placid_drip.triggered_events.batch_cleanup.on_batch_enrollment_removed",
@@ -47,6 +54,17 @@ doc_events = {
 # `/join/<token>` is a batch's join link - see placid_drip.batch_links. Served by
 # www/join.html with the token in form_dict, so the same page also answers the
 # query-string form `/join?token=...`.
+# The generic frappe.client API is a second way into discussions; these apply the
+# same batch rule there as the LMS endpoints do.
+permission_query_conditions = {
+    "Discussion Topic": "placid_drip.discussions.topic_query_conditions",
+    "Discussion Reply": "placid_drip.discussions.reply_query_conditions",
+}
+has_permission = {
+    "Discussion Topic": "placid_drip.discussions.topic_has_permission",
+    "Discussion Reply": "placid_drip.discussions.reply_has_permission",
+}
+
 website_route_rules = [
     {"from_route": "/join/<token>", "to_route": "join"},
 ]

@@ -11,14 +11,22 @@
 
 {% block page_content %}
   <div class="placid-login-shell">
-    <div class="placid-login-left">
-      <img src="/assets/placid_drip/images/placid-logo-hhh.png" alt="Placid Academy" />
-      <img class="img-hero" src="/assets/placid_drip/images/hero-1.png" />
-    </div>
+    <aside class="placid-login-hero">
+      <div>
+        <p class="placid-hero-kicker">Placid Academy</p>
+        <h1 class="placid-hero-title">Head.<br>Heart.<br><em>Hand.</em></h1>
+        <p class="placid-hero-text">{{ _("Your classes, your batch and your progress, all in one place.") }}</p>
+      </div>
+      <figure class="placid-hero-photo">
+        <img src="/assets/placid_drip/images/hero-1.png" alt="" width="430" height="375" />
+      </figure>
+    </aside>
 
-    <div class="placid-login-right">
-      {{ super() }}
-      <a class="browse-courses-cta" href="/courses">Browse Courses</a>
+    <div class="placid-login-panel">
+      <div class="placid-login-form">
+        <div class="placid-login-logo" role="img" aria-label="Placid Academy"></div>
+        {{ super() }}
+      </div>
     </div>
   </div>
 {% endblock %}
