@@ -26,20 +26,13 @@
 
 	<div class="page-card">
 		{% if mode == "register" %}
-			<p class="join-intro">
-				{{ _("Create your account to join. Already have one?") }}
-				<a href="{{ login_url }}">{{ _("Log in") }}</a>
-			</p>
-
 			<form id="join-register" novalidate>
-				<div class="form-group">
-					<label for="join_email" class="small text-muted">{{ _("Email (this will be your username)") }}</label>
-					<input id="join_email" type="email" class="form-control" autocomplete="email" inputmode="email" maxlength="140" required autofocus>
-				</div>
+				<p class="join-intro">{{ _("Tell us who you are and you're in.") }}</p>
+
 				<div class="join-name-row">
 					<div class="form-group">
 						<label for="join_first_name" class="small text-muted">{{ _("First name") }}</label>
-						<input id="join_first_name" type="text" class="form-control" autocomplete="given-name" maxlength="140" required>
+						<input id="join_first_name" type="text" class="form-control" autocomplete="given-name" maxlength="140" required autofocus>
 					</div>
 					<div class="form-group">
 						<label for="join_last_name" class="small text-muted">{{ _("Last name") }}</label>
@@ -47,22 +40,41 @@
 					</div>
 				</div>
 				<div class="form-group">
-					<label for="join_password" class="small text-muted">{{ _("Password") }}</label>
-					<input id="join_password" type="password" class="form-control" autocomplete="new-password" required>
-					<p class="join-strength small text-muted mt-1 mb-0" hidden></p>
+					<label for="join_email" class="small text-muted">{{ _("Email") }}</label>
+					<input id="join_email" type="email" class="form-control" autocomplete="email" inputmode="email" maxlength="140" required>
 				</div>
-				<div class="form-group">
-					<label for="join_confirm" class="small text-muted">{{ _("Confirm password") }}</label>
-					<input id="join_confirm" type="password" class="form-control" autocomplete="new-password" required>
+
+				{# Revealed only once the server says this address has no account yet. #}
+				<div id="join-password-step" hidden>
+					<p class="join-new small">
+						{{ _("You're new here. Choose a password and we'll create your account - your email is your username.") }}
+					</p>
+					<div class="form-group">
+						<label for="join_password" class="small text-muted">{{ _("Password") }}</label>
+						<input id="join_password" type="password" class="form-control" autocomplete="new-password">
+						<p class="join-strength small text-muted mt-1 mb-0" hidden></p>
+					</div>
+					<div class="form-group">
+						<label for="join_confirm" class="small text-muted">{{ _("Confirm password") }}</label>
+						<input id="join_confirm" type="password" class="form-control" autocomplete="new-password">
+					</div>
 				</div>
 
 				<p class="join-status small" role="status" hidden></p>
-				<a id="join-login-existing" class="btn btn-default btn-block mb-3" href="{{ login_url }}" hidden>{{ _("Log in instead") }}</a>
 
-				<button type="submit" class="btn btn-primary btn-block btn-join-submit">
-					{{ _("Create account and join") }}
+				<button type="submit" class="btn btn-primary btn-block btn-join-submit"
+					data-label-continue="{{ _('Continue') }}"
+					data-label-create="{{ _('Create account and join') }}">
+					{{ _("Continue") }}
 				</button>
 			</form>
+
+			{# Shown in place of the form when the address already had an account. #}
+			<div id="join-done" hidden>
+				<p class="join-intro" id="join-done-title"></p>
+				<p class="small text-muted" id="join-done-detail"></p>
+				<a class="btn btn-primary btn-block" id="join-done-login" href="{{ login_url }}">{{ _("Log in to start learning") }}</a>
+			</div>
 
 		{% elif mode == "join" %}
 			<form id="join-batch">
@@ -90,7 +102,7 @@
 
 		{% elif mode == "enrolled" %}
 			<p class="join-intro">{{ _("You're already in this batch.") }}</p>
-			<a class="btn btn-primary btn-block" href="{{ batch_url }}">{{ _("Go to the batch") }}</a>
+			<a class="btn btn-primary btn-block" href="{{ batch_url }}">{{ _("Continue learning") }}</a>
 
 		{% elif mode == "full" %}
 			<p class="join-intro">{{ _("This batch is full.") }}</p>
@@ -181,6 +193,15 @@
 		margin-bottom: 0.25rem;
 	}
 
+	.join-page .join-new {
+		margin: 0.25rem 0 1rem;
+		padding: 0.6rem 0.75rem;
+		border-left: 3px solid var(--primary, #1f6f54);
+		background: var(--subtle-fg, rgba(0, 0, 0, 0.04));
+		color: var(--text-color);
+		border-radius: 0 4px 4px 0;
+	}
+
 	.join-page .join-status {
 		margin: 0 0 0.75rem 0;
 	}
@@ -247,7 +268,11 @@ frappe.ready(function () {
 		if (button) button.disabled = busy;
 	}
 
-	// ----- Register and join -----------------------------------------------
+	// ----- Join with name and email -------------------------------------
+	// One form, two possible round trips. The first sends name and email: an
+	// address that already has an account is enrolled there and then. Otherwise
+	// the server answers "password_required", the password fields appear, and the
+	// second submit creates the account.
 	const registerForm = document.getElementById("join-register");
 	if (registerForm) {
 		const email = registerForm.querySelector("#join_email");
@@ -256,7 +281,32 @@ frappe.ready(function () {
 		const password = registerForm.querySelector("#join_password");
 		const confirm = registerForm.querySelector("#join_confirm");
 		const strength = registerForm.querySelector(".join-strength");
-		const loginInstead = registerForm.querySelector("#join-login-existing");
+		const passwordStep = registerForm.querySelector("#join-password-step");
+		const submit = registerForm.querySelector(".btn-join-submit");
+		const done = document.getElementById("join-done");
+
+		// The address the password fields were revealed for. Editing the email
+		// afterwards puts the form back to step one: the new address may well have
+		// an account, and must not be sent along with a password meant for another.
+		let passwordFor = null;
+
+		function showPasswordStep(address) {
+			passwordFor = address;
+			passwordStep.hidden = !address;
+			submit.textContent = address ? submit.dataset.labelCreate : submit.dataset.labelContinue;
+			if (!address) {
+				password.value = "";
+				confirm.value = "";
+				strength.hidden = true;
+			}
+		}
+
+		email.addEventListener("input", () => {
+			if (passwordFor && email.value.trim().toLowerCase() !== passwordFor) {
+				showPasswordStep(null);
+				setStatus(registerForm, "", false);
+			}
+		});
 
 		let strengthTimer = null;
 		password.addEventListener("input", () => {
@@ -290,56 +340,83 @@ frappe.ready(function () {
 			strength.hidden = false;
 		}
 
+		function showEnrolled(result, address) {
+			document.getElementById("join-done-title").textContent = result.joined
+				? __("You're in.")
+				: __("You're already in this batch.");
+			document.getElementById("join-done-detail").textContent = result.joined
+				? __("{0} already has an account, so we added it to {1}. Log in to start learning.", [address, result.title])
+				: __("{0} is already a member of {1}. Log in to continue learning.", [address, result.title]);
+			document.getElementById("join-done-login").href = result.redirect_to;
+			registerForm.hidden = true;
+			done.hidden = false;
+			document.getElementById("join-done-login").focus();
+		}
+
 		let busy = false;
 		registerForm.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			if (busy) return;
 
-			loginInstead.hidden = true;
+			const address = email.value.trim().toLowerCase();
 
-			if (!email.value.trim() || !email.checkValidity()) {
-				setStatus(registerForm, __("Please enter a valid email address."), true);
-				email.focus();
-				return;
-			}
 			if (!first.value.trim()) {
 				setStatus(registerForm, __("Please enter your first name."), true);
 				first.focus();
 				return;
 			}
-			if (!password.value) {
-				setStatus(registerForm, __("Please choose a password."), true);
-				password.focus();
+			if (!address || !email.checkValidity()) {
+				setStatus(registerForm, __("Please enter a valid email address."), true);
+				email.focus();
 				return;
 			}
-			if (password.value !== confirm.value) {
-				setStatus(registerForm, __("Passwords do not match."), true);
-				confirm.focus();
-				return;
+
+			const withPassword = passwordFor === address;
+			if (withPassword) {
+				if (!password.value) {
+					setStatus(registerForm, __("Please choose a password."), true);
+					password.focus();
+					return;
+				}
+				if (password.value !== confirm.value) {
+					setStatus(registerForm, __("Passwords do not match."), true);
+					confirm.focus();
+					return;
+				}
 			}
 
 			busy = true;
 			setBusy(registerForm, true);
 			setStatus(registerForm, "", false);
 
-			const { ok, status, data } = await post("placid_drip.api.batch_join.register_and_join", {
+			const { ok, status, data } = await post("placid_drip.api.batch_join.join_with_email", {
 				token,
-				email: email.value.trim(),
+				email: address,
 				first_name: first.value.trim(),
 				last_name: last.value.trim(),
-				password: password.value,
+				password: withPassword ? password.value : "",
 			});
 
-			if (ok && data.message && data.message.redirect_to) {
-				setStatus(registerForm, __("You're in. Taking you to your batch..."), false);
-				window.location.replace(data.message.redirect_to);
+			const result = ok && data.message;
+
+			if (result && result.status === "created" && result.redirect_to) {
+				setStatus(registerForm, __("You're in. Taking you to your first course..."), false);
+				window.location.replace(result.redirect_to);
 				return;
 			}
 
-			setStatus(registerForm, serverMessage(data) || fallbackError(status), true);
-			// An address that already has an account is not a mistake to fix in the
-			// form - the way forward is to log in, so put that button right here.
-			loginInstead.hidden = data.exc_type !== "AccountExistsError";
+			if (result && result.status === "enrolled") {
+				showEnrolled(result, address);
+				return;
+			}
+
+			if (result && result.status === "password_required") {
+				showPasswordStep(address);
+				password.focus();
+			} else {
+				setStatus(registerForm, serverMessage(data) || fallbackError(status), true);
+			}
+
 			busy = false;
 			setBusy(registerForm, false);
 		});
@@ -361,7 +438,7 @@ frappe.ready(function () {
 			const { ok, status, data } = await post("placid_drip.api.batch_join.join", { token });
 
 			if (ok && data.message && data.message.redirect_to) {
-				setStatus(joinForm, __("You're in. Taking you to your batch..."), false);
+				setStatus(joinForm, __("You're in. Taking you to your first course..."), false);
 				window.location.replace(data.message.redirect_to);
 				return;
 			}

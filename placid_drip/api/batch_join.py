@@ -3,9 +3,11 @@
 Two audiences. The facilitator's modal reads, resets and switches off the link,
 and every one of those checks that the caller may invite into that batch. The
 join page itself redeems the link: `join` for someone signed in, and
-`register_and_join` for a newcomer, which is open to guests because a brand-new
+`join_with_email` for everyone else, which is open to guests because a brand-new
 student is by definition not logged in - the token is their authorisation.
 """
+
+from urllib.parse import quote
 
 import frappe
 from frappe import _
@@ -19,8 +21,8 @@ def _assert_signed_in():
 		frappe.throw(_("Please log in."), frappe.PermissionError)
 
 
-def _batch_page(batch: str) -> str:
-	return f"/lms/batches/{batch}"
+def _login_then(path: str) -> str:
+	return "/login?redirect-to=" + quote(path, safe="")
 
 
 # ---------------------------------------------------------------------------
@@ -69,29 +71,42 @@ def join(token: str):
 	_assert_signed_in()
 
 	result = batch_links.join(token, frappe.session.user)
-	result["redirect_to"] = _batch_page(result["batch"])
+	result["redirect_to"] = batch_links.landing_path(result["batch"])
 	return result
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def register_and_join(token: str, email: str, first_name: str, last_name: str = "", password: str = ""):
-	"""Create a newcomer's account, enrol it, and sign them in.
+def join_with_email(token: str, email: str, first_name: str, last_name: str = "", password: str = ""):
+	"""Join by name and email: enrol an existing account, or create one and enrol it.
 
-	Refuses when a session already exists: silently replacing it with the new
-	account would surprise whoever is logged in, so the page offers sign-out
-	instead. Rate limited per IP because it creates accounts for anyone.
+	A new account is signed in straight away - whoever is at the keyboard just
+	chose its password. An existing account is enrolled but NOT signed in, since
+	typing someone's address proves nothing about who is typing; the response
+	sends them through the login page and on to their course.
+
+	Refuses when a session already exists: the page shows a one-click Join for
+	signed-in visitors instead. Rate limited per IP because it creates accounts,
+	and answers whether an address is registered, for anyone holding the link.
 	"""
 	check_ip_rate_limits("batch_join_register")
 
 	if frappe.session.user != "Guest":
 		frappe.throw(
-			_("You are already signed in. Sign out first to create a new account."),
+			_("You are already signed in. Sign out first to join with a different email."),
 			frappe.PermissionError,
 		)
 
-	result = batch_links.register_and_join(token, email, first_name, last_name, password)
+	result = batch_links.join_with_email(token, email, first_name, last_name, password)
 
-	frappe.local.login_manager.login_as(result.pop("user"))
+	if result["status"] == "password_required":
+		return result
 
-	result["redirect_to"] = _batch_page(result["batch"])
+	landing = batch_links.landing_path(result["batch"])
+
+	if result["status"] == "created":
+		frappe.local.login_manager.login_as(result.pop("user"))
+		result["redirect_to"] = landing
+	else:
+		result["redirect_to"] = _login_then(landing)
+
 	return result

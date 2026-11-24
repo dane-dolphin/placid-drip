@@ -2,8 +2,9 @@
 
 This is the open-door counterpart to `placid_drip.invites`. An email invite names
 a person; a join link names a batch. The facilitator copies the link or shows the
-QR code, and anyone who follows it can join - signing in if they already have an
-account, creating one on the spot if not. Self-registration is otherwise switched
+QR code, and anyone who follows it can join by giving their name and email. An
+address that already has an account is simply enrolled; a new one is asked for a
+password and gets an account on the spot. Self-registration is otherwise switched
 off on this site, so holding the link is what authorises creating the account.
 
 The link is a random token stored on the batch itself (`LMS Batch.invite_token`,
@@ -28,14 +29,6 @@ TOKEN_LENGTH = 32
 
 #: Columns the join page and the facilitator's modal both need.
 BATCH_FIELDS = ["name", "title", "description", "start_date", "end_date", "seat_count", TOKEN_FIELD]
-
-
-class AccountExistsError(frappe.ValidationError):
-	"""Registration attempted with an address that already has an account.
-
-	Its own class so the join page can tell this apart from every other failure
-	and offer a log-in button instead of a red line.
-	"""
 
 
 # ---------------------------------------------------------------------------
@@ -185,11 +178,22 @@ def join(token: str, user: str) -> dict:
 	return {"batch": batch.name, "title": batch.title, "joined": True}
 
 
-def register_and_join(token: str, email: str, first_name: str, last_name: str, password: str) -> dict:
-	"""Create an account for a newcomer and enrol it. Returns `join`'s result plus `user`.
+def join_with_email(token: str, email: str, first_name: str, last_name: str, password: str = "") -> dict:
+	"""Enrol whoever owns `email`, creating their account first if they have none.
 
-	The whole thing is one database transaction: if the enrolment fails, the
-	account disappears with it rather than leaving an orphan that cannot join.
+	Three outcomes, told apart by `status`:
+
+	* ``enrolled`` - the address already has an account, which is now in the batch.
+	  Nothing about that account is changed (the name typed into the form is
+	  ignored) and the caller must NOT sign the visitor in: knowing an email
+	  address is enough to be enrolled, but never enough to be logged in.
+	* ``password_required`` - no account yet and no password given. Nothing was
+	  written; the page shows its password fields and submits again.
+	* ``created`` - a new account was made and enrolled; `user` names it so the
+	  caller can sign them in.
+
+	Creating and enrolling is one database transaction: if the enrolment fails,
+	the account disappears with it rather than leaving an orphan that cannot join.
 	"""
 	batch = _batch_for_join(token)
 
@@ -198,17 +202,55 @@ def register_and_join(token: str, email: str, first_name: str, last_name: str, p
 		frappe.throw(_("Please enter your email address."))
 	validate_email_address(email, throw=True)
 
-	if user_for_email(email):
-		frappe.throw(
-			_("An account already exists for {0}. Log in to join this batch.").format(email),
-			AccountExistsError,
-		)
+	if not (first_name or "").strip():
+		frappe.throw(_("Please enter your first name."))
+
+	existing = user_for_email(email)
+	if existing:
+		if not cint(frappe.db.get_value("User", existing, "enabled")):
+			frappe.throw(_("This account cannot join right now. Please contact your facilitator."))
+		result = join(token, existing)
+		result["status"] = "enrolled"
+		return result
 
 	if seats_left(batch) == 0:
 		frappe.throw(_("This batch is full. Please contact your facilitator."))
 
+	if not password:
+		return {"batch": batch.name, "title": batch.title, "status": "password_required"}
+
 	user = create_student_account(email, first_name, last_name, password)
 
 	result = join(token, user.name)
+	result["status"] = "created"
 	result["user"] = user.name
 	return result
+
+
+# ---------------------------------------------------------------------------
+# Where a new member lands
+# ---------------------------------------------------------------------------
+
+
+def first_course(batch: str) -> str | None:
+	"""The batch's first course, in the order the facilitator arranged them."""
+	rows = frappe.get_all(
+		"Batch Course",
+		filters={"parenttype": "LMS Batch", "parent": batch},
+		pluck="course",
+		order_by="idx asc",
+		limit=1,
+	)
+	return rows[0] if rows else None
+
+
+def landing_path(batch: str) -> str:
+	"""Where someone who has just joined should go: the first course, ready to start.
+
+	The batch's own page is a list of tabs; a newcomer wants the one button that
+	begins the first class. A batch with no courses yet falls back to its page.
+	"""
+	course = first_course(batch)
+	if course:
+		return f"/lms/batches/{batch}/courses/{course}"
+	return f"/lms/batches/{batch}"

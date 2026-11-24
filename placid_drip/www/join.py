@@ -1,9 +1,9 @@
 """Landing page for a batch's join link - `/join/<token>`.
 
 Works out which screen the visitor needs and leaves the rendering to the template.
-A guest gets the registration form (with a log-in link for people who already
-have an account); someone signed in gets a single "Join" button; someone already
-in the batch is pointed at it; and an unknown or switched-off token gets a dead
+A guest gets a name-and-email form (the password fields appear only if that
+address has no account yet); someone signed in gets a single "Join" button;
+someone already in the batch is pointed at its first course; and an unknown or switched-off token gets a dead
 end that reveals nothing about which tokens exist. The writes happen in
 `placid_drip.api.batch_join`.
 """
@@ -41,7 +41,7 @@ def get_context(context):
 		return context
 
 	context.batch = _describe(batch)
-	context.batch_url = f"/lms/batches/{batch.name}"
+	context.batch_url = batch_links.landing_path(batch.name)
 	context.login_url = "/login?redirect-to=" + quote(f"/join/{token}", safe="")
 
 	user = frappe.session.user
